@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+
 // ReSharper disable SuggestVarOrType_Elsewhere
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 // ReSharper disable UseObjectOrCollectionInitializer
@@ -102,7 +103,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 					//Check if SOB file is indeed a SOB file
 					int count;
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
-					Console.WriteLine($"Open {args[idx + 1]}");
+					Console.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (fileSob.ReadByte() == 0x53     //S
 						&& fileSob.ReadByte() == 0x4F  //O
@@ -123,7 +124,8 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									   (fileSob.ReadByte() << 16) | (fileSob.ReadByte() << 24);
 							int type = fileSob.ReadByte();
 
-							Console.WriteLine($"{i:X}: 0x{start:X}  /// Size: 0x{size:X} / Offset 0x{offset:X} / Type {type:X}");
+							Console.WriteLine("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
+								start, size, offset, type);
 							byte[] buffer = new byte[size];
 
 							if (type == 0) {
@@ -175,7 +177,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 
 							linktemp.Name  = new String(nametemp.ToArray());
 							linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
-							Console.WriteLine($"--{linktemp.Name} : {linktemp.Value:X}");
+							Console.WriteLine("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 							link.Add(linktemp);
 						} while (fileSob.ReadByte() == 0);
 
@@ -189,7 +191,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 				Console.WriteLine("----LINK");
 				for (int idx = 0; idx < sobInput; idx++) {
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
-					Console.WriteLine($"Open {args[idx + 1]}");
+					Console.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (fileSob.ReadByte() == 0x53     //S
 						&& fileSob.ReadByte() == 0x4F  //O
@@ -200,7 +202,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 							Console.WriteLine(startLink[idx].ToString("X"));
 							fileSob.BaseStream.Seek(startLink[idx], SeekOrigin.Begin);
 							while (fileSob.BaseStream.Position < fileSob.BaseStream.Length - 1) {
-								Console.WriteLine($"-{fileSob.BaseStream.Position:X}");
+								Console.WriteLine("-{0:X}", fileSob.BaseStream.Position);
 								//Get name
 								List<char> nametemp = new List<char>();
 								char       check    = 'A';
@@ -214,7 +216,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								string name     = new String(nametemp.ToArray());
 
 								//search
-								int nameId     = -1;
+								int nameId = -1;
 								for (int i = 0; i < link.Count; i++) {
 									if (link[i].Name.Equals(name)) {
 										nameId = i;
@@ -229,7 +231,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								calctemp.Value     = link[nameId].Value;
 								linkcalc.Add(calctemp);
 
-								Console.WriteLine($"--{name} : {link[nameId].Value:X}");
+								Console.WriteLine("--{0} : {1:X}", name, link[nameId].Value);
 
 								if (fileSob.ReadByte() != 0) {
 									fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
@@ -251,7 +253,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 										}
 									}
 
-									Console.WriteLine($"----{name} : {link[nameId].Value:X}");
+									Console.WriteLine("----{0} : {1:X}", name, link[nameId].Value);
 									fileSob.ReadByte();
 								}
 
@@ -319,30 +321,37 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									int operation = linkcalc[highestpriidx].Operation;
 									if (operation == 0x02) {
 										//Shift Right
-										Console.WriteLine($"{calctemp.Value:X} >> {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} >> {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value >>= linkcalc[highestpriidx].Value;
 									} else if (operation == 0x0C) {
 										//Add
-										Console.WriteLine($"{calctemp.Value:X} + {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} + {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value += linkcalc[highestpriidx].Value;
 									} else if (operation == 0x0E) {
 										//Sub
-										Console.WriteLine($"{calctemp.Value:X} - {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} - {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value -= linkcalc[highestpriidx].Value;
 									} else if (operation == 0x10) {
 										//Mul
-										Console.WriteLine($"{calctemp.Value:X} * {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} * {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value *= linkcalc[highestpriidx].Value;
 									} else if (operation == 0x12) {
 										//Div
-										Console.WriteLine($"{calctemp.Value:X} / {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} / {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value /= linkcalc[highestpriidx].Value;
 									} else if (operation == 0x16) {
 										//And
-										Console.WriteLine($"{calctemp.Value:X} & {linkcalc[highestpriidx].Value:X}");
+										Console.WriteLine("{0:X} & {1:X}", calctemp.Value,
+											linkcalc[highestpriidx].Value);
 										calctemp.Value &= linkcalc[highestpriidx].Value;
 									} else {
-										Console.WriteLine($"ERROR (CALCULATION) [{linkcalc[highestpriidx].Operation:X}]");
+										Console.WriteLine("ERROR (CALCULATION) [{0:X}]",
+											linkcalc[highestpriidx].Operation);
 									}
 
 									linkcalc[calcidx] = calctemp;
@@ -353,7 +362,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								//And then put the data in
 								int offset = fileSob.ReadInt32();
 								fileOut.Seek(offset + 1, SeekOrigin.Begin);
-								Console.WriteLine($"----{offset:X} : {linkcalc[0].Value:X}");
+								Console.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
 								byte format = fileSob.ReadByte();
 								if (format == 0x00) {
 									//8-bit
