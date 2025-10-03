@@ -1,36 +1,81 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 
 namespace ARGLINK_REWRITE
 {
-    class Program
+    struct LinkData
     {
-        struct LinkData
-        {
-            public string name;
-            public int value;
+        public string name;
+        public int value;
+    }
+
+    struct Calculation
+    {
+        public int deep;
+        public int priority;
+        public int operation;
+        public int value;
+    }
+
+    static class Program
+    {
+        // Default values as stated in usage text
+        private static byte s_ioBuffersKiB = 10;
+        private static string s_defaultExtension = ".SOB";
+        private static ushort s_fabcardPort = 0x290;
+        private static byte s_memoryMiB = 2;
+        private static ushort s_printerPort = 0x378;
+        private static byte s_romType = 0x7D;
+
+        static void OutputLogo() {
+            Console.WriteLine(
+@"ArgLink Re-Rewrite			(c) 2025 Repzilon
+Based on ARGLINK_REWRITE		(c) 2017 LuigiBlood
+For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
+");
         }
 
-        struct Calculation
+        static void OutputUsage()
         {
-            public int deep;
-            public int priority;
-            public int operation;
-            public int value;
+            Console.WriteLine(@"ARGLINK [opts] obj1 [opts] obj2 [opts] obj3 [opts] obj4 ...
+All object file names are prepended with .SOB if no extension is specified.
+CLI options can be placed in the ALFLAGS environment variable.
+A filename preceded with @ is a file list.
+Please note: DOS has a limit on parameters, so please use the @ option.
+
+** Unimplemented Options are:
+** -A1		- Download to ADS SuperChild1 hardware.
+** -A2		- Download to ADS SuperChild2 hardware.
+** -B		- Set file input/output buffers (0-31), default = 10 KiB.
+** -C		- Duplicate public warnings on.
+** -D		- Download to ramboy.
+** -E <ext>	- Change default file extension, default = '.SOB'.
+** -F[<addr>]	- Set Fabcard port address (in hex), default = 0x290.
+** -H <size>	- String hash size, default = 256.
+** -I		- Display file information while loading.
+** -L <size>	- Display used ROM layout (size is in KiB).
+** -M <size>	- Memory size, default = 2 (mebibytes).
+** -N		- Download to Nintendo Emulation system.
+** -O <romfile>	- Output a ROM file.
+** -P[<addr>]	- Set Printer port address (in hex), default = 0x378.
+** -R		- Display ROM block information.
+** -S		- Display all public symbols.
+** -T[<type>]	- Set ROM type (in hex), default = 0x7D.
+** -W <prefix>	- Set prefix (Work directory) for object files.
+** -Y		- Use secondary ADS backplane CIC.
+** -Z		- Generate a debugger MAP file.
+");
         }
 
         static void Main(string[] args)
         {
-            Console.WriteLine("ARGLINK REWRITE\nby LuigiBlood\n----------------");
+            OutputLogo();
             for (int i = 0; i < args.Length; i++)
                 Console.WriteLine(args[i]);
             if (args.Length < 2)
             {
-                Console.WriteLine("Usage: ARGLINK <ROM OUTPUT> <SOB INPUT FILE(S)>\n");
+               OutputUsage();
             }
             else
             {
