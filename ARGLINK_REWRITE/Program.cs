@@ -21,7 +21,7 @@ namespace ARGLINK_REWRITE
 		public int Value;
 	}
 
-	static class Program
+	internal static class Program
 	{
 		// Default values as stated in usage text
 		// ReSharper disable InconsistentNaming
@@ -33,7 +33,7 @@ namespace ARGLINK_REWRITE
 		private static byte s_romType = 0x7D;
 		// ReSharper restore InconsistentNaming
 
-		static void OutputLogo()
+		private static void OutputLogo()
 		{
 			Console.WriteLine(@"ArgLink Re-Rewrite			(c) 2025 Repzilon
 Based on ARGLINK_REWRITE		(c) 2017 LuigiBlood
@@ -41,7 +41,7 @@ For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
 ");
 		}
 
-		static void OutputUsage()
+		private static void OutputUsage()
 		{
 			Console.WriteLine(@"ARGLINK [opts] obj1 [opts] obj2 [opts] obj3 [opts] obj4 ...
 All object file names are prepended with .SOB if no extension is specified.
@@ -73,7 +73,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 ");
 		}
 
-		static void Main(string[] args)
+		private static void Main(string[] args)
 		{
 			OutputLogo();
 			for (int i = 0; i < args.Length; i++) {
