@@ -1,9 +1,25 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Exploratorium.ArgSfx.OutOfThisDimension
 {
 	internal static class Program
 	{
+		private static readonly IDictionary<string, string[]> s_dicUsingToIncludes =
+			InitUsingToIncludes();
+
+		private static Dictionary<string, string[]> InitUsingToIncludes()
+		{
+			var dicMap = new Dictionary<string, string[]> {
+				{ "System", new[] { "stdbool.h", "stdint.h", "string.h" } },
+				{ "System.IO", new[] { "stdio.h" } }
+			};
+			return dicMap;
+		}
+
 		private static void OutputLogo()
 		{
 			Console.WriteLine("Out Of This Dimension\t(c) 2025 Repzilon\n");
@@ -12,11 +28,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static void OutputUsage()
 		{
 			Console.WriteLine("NAME\n\tOOTD - Out Of This Dimension\n\n" +
-							  "SYNOPSIS\n\tootd <orig-source.cs> <translated.c>\n\n" +
+							  "SYNOPSIS\n\tootd <orig-source.cs> <translated.c>|-\n\n" +
 							  "DESCRIPTION\n\tOOTD is a regular expression powered special purpose C# to C translator\n" +
 							  "\tmade specifically for ARGLINK_REWRITE. No artificial intelligence is\n" +
-							  "\tinvolved, just old fashioned software text replacement.\n");
-			//puts("OPTIONS\n\t\n");
+							  "\tinvolved, just old fashioned software text replacement.\n" +
+							  "OPTIONS\n\tNone per se, but '-' can be used for standard output.\n");
 			//puts("ENVIRONMENT\n\t\n");
 			Console.WriteLine("EXIT STATUS\n\t0 on command success, 1 when this general help message is shown,\n" +
 							  "\t2 on an internally caught error.\n");
@@ -25,7 +41,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			//puts("SEE ALSO\n\t\n");
 			//puts("STANDARDS\n\t\n");
 			//puts("HISTORY\n\t\n");
-			//puts("BUGS\n\t\n"););
+			//puts("BUGS\n\t\n");
 		}
 
 		static int Main(string[] args)
@@ -34,9 +50,111 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			if (args.Length < 2) {
 				OutputUsage();
 				return 1;
-			} else {
+			} else if (args[0] == args[1]) {
+				Console.Error.WriteLine("OOTD Error: source and destination are the same file.");
 				return 2;
+			} else {
+				var        strAllSource = File.ReadAllText(args[0]);
+				var        blnFile      = true;
+				TextWriter destination  = null;
+				try {
+					// Open output stream
+					if (args[1] == "-") {
+						blnFile     = false;
+						destination = Console.Out;
+					} else {
+						destination = new StreamWriter(args[1]);
+					}
+
+					// Write C Declarations
+					foreach (var strInclude in UsingsToIncludes(strAllSource)) {
+						destination.WriteLine("#include <{0}>", strInclude);
+					}
+					destination.WriteLine();
+					destination.WriteLine("typedef unsigned char byte;");
+					destination.WriteLine();
+
+					// Translate C# code to C
+					string strIndent;
+					var    strCleaned = ExtractBody(strAllSource, "namespace", out strIndent);
+					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
+					var mtcStrings = FindStringLiterals(strCleaned);
+					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "internal", "private", "public", "protected");
+					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "static");
+
+					// Write C code
+					destination.WriteLine(strCleaned.Trim());
+					return 0;
+				} finally {
+					if (blnFile && (destination != null)) {
+						destination.Close();
+					}
+				}
 			}
+		}
+
+		private static string[] UsingsToIncludes(string allSource)
+		{
+			var mtcUsings   = Regex.Matches(allSource, @"using ([A-Za-z0-9._]+);");
+			var lstIncludes = new List<string>();
+			foreach (Match m in mtcUsings) {
+				if (s_dicUsingToIncludes.TryGetValue(m.Groups[1].Value, out var includes)) {
+					lstIncludes.AddRange(includes);
+				}
+			}
+
+			lstIncludes.Sort();
+			return lstIncludes.ToArray();
+		}
+
+		private static Match MatchPartition(string sourceCode, string keyword)
+		{
+			return Regex.Match(sourceCode, keyword + @" [A-Za-z0-9._]+\s+[{](.*)[}]", RegexOptions.Singleline);
+		}
+
+		private static string RemoveFirstIndent(string extracted, string indentSequence)
+		{
+			indentSequence = indentSequence.Replace("\t", "\\t");
+			return Regex.Replace(extracted, "^" + indentSequence, "", RegexOptions.Multiline);
+		}
+
+		private static string ExtractBody(string allSource, string keyword, out string indentSequence)
+		{
+			var strExtracted = MatchPartition(allSource, keyword).Groups[1].Value.Trim();
+			indentSequence = Regex.Match(strExtracted, @"^\s+", RegexOptions.Multiline).Value;
+			return RemoveFirstIndent(strExtracted, indentSequence);
+		}
+
+		private static string TearDownPartition(string allSource, string keyword, string indentSequence)
+		{
+			var match = MatchPartition(allSource, keyword);
+			return match.Success
+				? allSource.Substring(0, match.Index) + RemoveFirstIndent(match.Groups[1].Value, indentSequence) +
+				  allSource.Substring(match.Index + match.Length)
+				: allSource;
+		}
+
+		private static string RemoveAnyKeyword(string extract, MatchCollection stringLiterals, params string[] keywords)
+		{
+			return Regex.Replace(extract, @"\b(" + String.Join("|", keywords) + ") ",
+				m => RemoveOutsideLiteral(m, stringLiterals));
+		}
+
+		private static MatchCollection FindStringLiterals(string extract)
+		{
+			return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
+		}
+
+		private static string RemoveOutsideLiteral(Match m, MatchCollection literals)
+		{
+			return literals.Cast<Match>().Any(x => InsideStringLiteral(m, x)) ? m.Value : "";
+		}
+
+		private static bool InsideStringLiteral(Match what, Match literal)
+		{
+			var whatStart    = what.Index;
+			var literalStart = literal.Index;
+			return whatStart >= literalStart && whatStart < literalStart + literal.Length;
 		}
 	}
 }
