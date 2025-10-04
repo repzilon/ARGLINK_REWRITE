@@ -85,6 +85,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
 					mtcStrings = FindStringLiterals(strCleaned);
 					strCleaned = ConvertVerbatimStrings(strCleaned, mtcStrings);
+					strCleaned = TranslateConsoleOutputCalls(strCleaned);
+					strCleaned = TranslateFileInputOutput(strCleaned);
 
 					// Write C code
 					strCleaned = strCleaned.Trim().Replace("\n\n\n", "\n\n");
@@ -197,6 +199,89 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			}
 
 			return translating;
+		}
+
+		private static string TranslateConsoleOutputCalls(string translating)
+		{
+			return Regex.Replace(translating, @"Console(.Error)?.Write(Line)?[(](.*)", ReplaceSingleConsoleCall);
+		}
+
+		private static string ReplaceSingleConsoleCall(Match m)
+		{
+			var blnStdError = !String.IsNullOrEmpty(m.Groups[1].Value);
+			var blnNewLine  = !String.IsNullOrEmpty(m.Groups[2].Value);
+			var strArgument = m.Groups[3].Value;
+			var blnLiteral  = strArgument.StartsWith("\"");
+			var mtcFormats  = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
+			if (blnLiteral && (mtcFormats.Count > 0)) {
+				// printf or fprintf. TODO : Better format handling
+				strArgument = Regex.Replace(strArgument, @"[{]\d+(.*?)[}]", ConvertFormatSpecifier);
+				if (blnNewLine && strArgument.EndsWith(");")) {
+					strArgument = strArgument.Replace("\",", "\\n\",");
+				}
+
+				return (blnStdError ? "fprintf(stderr, " : "printf(") + strArgument;
+			} else {
+				// puts or fputs
+				if (blnStdError && strArgument.EndsWith("\");")) {
+					strArgument = strArgument.Replace("\");", blnNewLine ? "\\n\", stderr);" : "\", stderr);");
+				}
+
+				return (blnStdError ? "fputs(" : "puts(") + strArgument;
+			}
+		}
+
+		private static string ConvertFormatSpecifier(Match m2)
+		{
+			// Very rough but works for now
+			return m2.Groups[1].Value == ":X" ? "%dX" : "%s";
+		}
+
+		private static string TranslateFileInputOutput(string translating)
+		{
+			// translating = Regex.Replace(translating, @"", "");
+
+			translating = Regex.Replace(translating, @"new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
+
+			translating = translating.Replace("SeekOrigin.Begin", "SEEK_SET").Replace("SeekOrigin.Current", "SEEK_CUR")
+				.Replace("SeekOrigin.End", "SEEK_END");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_.]+)\.Seek[(]([A-Za-z0-9_\]\[\+ -]+),", ReplaceSeekCall);
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.BaseStream\.Position", "ftell($1)");
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Read(Char|Byte)\(\)", "fgetc($1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadInt32\(\)", "ReadLEInt32($1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadUInt16\(\)", "fgetc($1) | (fgetc($1) << 8)");
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.BaseStream\.WriteByte[(](.*)[)]", "fputc($2, $1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Write\(\(uint8_t[)](.*)[)]", "fputc($2, $1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Write\(\(uint16_t[)](.*)[)]", "fputc($2 & 0xff, $1); fputc($2 >> 8, $1)");
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.(Read|Write)[(](.*?), 0, (.*?)[)]", "f$2($3, sizeof(uint8_t), $4, $1)");
+			translating = translating.Replace("fRead(", "fread(").Replace("fWrite(", "fwrite(");
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Close\(\)", "fclose($1)");
+
+			return translating;
+		}
+
+		private static string ReplaceOpenCall(Match m)
+		{
+			var strMethod = m.Groups[1].Value;
+			var strMode   = "";
+			if (strMethod == "Read") {
+				strMode = "rb";
+			} else if (strMethod == "Write") {
+				strMode = "wb";
+			} else if (strMode == "Text") {
+				strMode = "r";
+			}
+			return "fopen(" + m.Groups[2].Value + ", \"" + strMode + "\")";
+		}
+
+		private static string ReplaceSeekCall(Match m)
+		{
+			return "fseek(" + m.Groups[1].Value.Replace(".BaseStream", "") + ", " + m.Groups[2].Value + ",";
 		}
 	}
 }
