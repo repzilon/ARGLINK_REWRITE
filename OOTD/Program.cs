@@ -2,23 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Exploratorium.ArgSfx.OutOfThisDimension
 {
 	internal static class Program
 	{
-		private static readonly IDictionary<string, string[]> s_dicUsingToIncludes =
-			InitUsingToIncludes();
+		private static readonly IDictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
+			{ "System", new[] { "stdbool.h", "stdint.h", "string.h" } },
+			{ "System.IO", new[] { "stdio.h" } }
+		};
 
-		private static Dictionary<string, string[]> InitUsingToIncludes()
-		{
-			var dicMap = new Dictionary<string, string[]> {
-				{ "System", new[] { "stdbool.h", "stdint.h", "string.h" } },
-				{ "System.IO", new[] { "stdio.h" } }
-			};
-			return dicMap;
-		}
+		private static readonly IDictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
+			{ "string", "char*" }, { "ushort", "uint16_t" }, { "int", "int32_t" }, { "long", "int64_t" },
+			{ "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
+			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" }
+		};
 
 		private static void OutputLogo()
 		{
@@ -70,20 +70,26 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					foreach (var strInclude in UsingsToIncludes(strAllSource)) {
 						destination.WriteLine("#include <{0}>", strInclude);
 					}
-					destination.WriteLine();
-					destination.WriteLine("typedef unsigned char byte;");
+
 					destination.WriteLine();
 
 					// Translate C# code to C
-					string strIndent;
-					var    strCleaned = ExtractBody(strAllSource, "namespace", out strIndent);
+					var strCleaned = ExtractBody(strAllSource, "namespace", out var strIndent);
 					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
 					var mtcStrings = FindStringLiterals(strCleaned);
 					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "internal", "private", "public", "protected");
+					mtcStrings = FindStringLiterals(strCleaned);
 					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "static");
+					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+ [A-Za-z_]+\r?\n", "");
+					strCleaned = RedeclareStructs(strCleaned);
+					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
+					mtcStrings = FindStringLiterals(strCleaned);
+					strCleaned = ConvertVerbatimStrings(strCleaned, mtcStrings);
 
 					// Write C code
-					destination.WriteLine(strCleaned.Trim());
+					strCleaned = strCleaned.Trim().Replace("\n\n\n", "\n\n");
+					strCleaned = Regex.Replace(strCleaned, "[ ]+", " ");
+					destination.WriteLine(strCleaned);
 					return 0;
 				} finally {
 					if (blnFile && (destination != null)) {
@@ -109,13 +115,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static Match MatchPartition(string sourceCode, string keyword)
 		{
-			return Regex.Match(sourceCode, keyword + @" [A-Za-z0-9._]+\s+[{](.*)[}]", RegexOptions.Singleline);
+			return Regex.Match(sourceCode, keyword + @" [A-Za-z0-9._]+\s+{(.*)}", RegexOptions.Singleline);
 		}
 
 		private static string RemoveFirstIndent(string extracted, string indentSequence)
 		{
-			indentSequence = indentSequence.Replace("\t", "\\t");
-			return Regex.Replace(extracted, "^" + indentSequence, "", RegexOptions.Multiline);
+			return Regex.Replace(extracted, "^" + indentSequence.Replace("\t", "\\t"), "", RegexOptions.Multiline);
 		}
 
 		private static string ExtractBody(string allSource, string keyword, out string indentSequence)
@@ -136,7 +141,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string RemoveAnyKeyword(string extract, MatchCollection stringLiterals, params string[] keywords)
 		{
-			return Regex.Replace(extract, @"\b(" + String.Join("|", keywords) + ") ",
+			return Regex.Replace(extract, @"(^|\b)(" + String.Join("|", keywords) + ") ",
 				m => RemoveOutsideLiteral(m, stringLiterals));
 		}
 
@@ -155,6 +160,43 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var whatStart    = what.Index;
 			var literalStart = literal.Index;
 			return whatStart >= literalStart && whatStart < literalStart + literal.Length;
+		}
+
+		private static string RedeclareStructs(string translating)
+		{
+			return Regex.Replace(translating, @"struct ([A-Za-z0-9_]+)\s+{(.*?)}", "typedef struct $1 {$2} $1;",
+				RegexOptions.Singleline);
+		}
+
+		private static string ReplaceDataTypeOfVariables(string translating)
+		{
+			foreach (var kvp in s_dicTypeMapping) {
+				var isGeneric   = kvp.Key.Contains('<');
+				var pattern     = isGeneric ? kvp.Key + " " : @"\b" + kvp.Key + @"\b";
+				var replacement = isGeneric ? kvp.Value + " " : kvp.Value;
+				translating = Regex.Replace(translating, pattern, replacement);
+			}
+
+			return translating;
+		}
+
+		private static string ConvertVerbatimStrings(string translating, MatchCollection stringLiterals)
+		{
+			var c = stringLiterals.Count;
+			// Process in reverse order to keep positions in stringLiterals valid
+			for (var i = c - 1; i >= 0; i--) {
+				if (stringLiterals[i].Value.StartsWith("@")) {
+					var strarLines = stringLiterals[i].Groups[2].Value
+						.Split("\r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+					var stbLiteral = new StringBuilder(stringLiterals[i].Length);
+					for (var j = 0; j < strarLines.Length; j++) {
+						stbLiteral.Append('"').Append(strarLines[j].Replace("\t", "\\t")).AppendLine("\\n\"");
+					}
+					translating = translating.Replace(stringLiterals[i].Value, stbLiteral.ToString());
+				}
+			}
+
+			return translating;
 		}
 	}
 }
