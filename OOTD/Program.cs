@@ -10,7 +10,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 	internal static class Program
 	{
 		private static readonly IDictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
-			{ "System", new[] { "stdbool.h", "stdint.h", "string.h" } },
+			{ "System", new[] { "stdbool.h", "stdint.h", "string.h", "stdlib.h" } },
 			{ "System.IO", new[] { "stdio.h" } }
 		};
 
@@ -76,21 +76,24 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					// Translate C# code to C
 					var strCleaned = ExtractBody(strAllSource, "namespace", out var strIndent);
 					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
-					var mtcStrings = FindStringLiterals(strCleaned);
-					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "internal", "private", "public", "protected");
-					mtcStrings = FindStringLiterals(strCleaned);
-					strCleaned = RemoveAnyKeyword(strCleaned, mtcStrings, "static");
+					strCleaned = RemoveAnyKeyword(strCleaned, "internal", "private", "public", "protected");
+					strCleaned = RemoveAnyKeyword(strCleaned, "static");
 					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+ [A-Za-z_]+\r?\n", "");
 					strCleaned = RedeclareStructs(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
-					mtcStrings = FindStringLiterals(strCleaned);
-					strCleaned = ConvertVerbatimStrings(strCleaned, mtcStrings);
+					strCleaned = Regex.Replace(strCleaned, @"([A-Za-z0-9*_]+)\[\]\s+([A-Za-z0-9_]+)", "$1 $2[]");
+					strCleaned = ConvertVerbatimStrings(strCleaned);
 					strCleaned = TranslateConsoleOutputCalls(strCleaned);
 					strCleaned = TranslateFileInputOutput(strCleaned);
+					strCleaned = TranslateInitObjects(strCleaned);
+					strCleaned = AddressMemberAccess(strCleaned);
+					strCleaned = HandleCounts(strCleaned);
+					strCleaned = TranslateSpecificCalls(strCleaned);
 
 					// Write C code
 					strCleaned = strCleaned.Trim().Replace("\n\n\n", "\n\n");
 					strCleaned = Regex.Replace(strCleaned, "[ ]+", " ");
+					strCleaned = strCleaned.Replace("\t\t ", "\t\t");
 					destination.WriteLine(strCleaned);
 					return 0;
 				} finally {
@@ -141,10 +144,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				: allSource;
 		}
 
-		private static string RemoveAnyKeyword(string extract, MatchCollection stringLiterals, params string[] keywords)
+		private static string RemoveAnyKeyword(string extract, params string[] keywords)
 		{
+			var mtcStrings = FindStringLiterals(extract);
 			return Regex.Replace(extract, @"(^|\b)(" + String.Join("|", keywords) + ") ",
-				m => RemoveOutsideLiteral(m, stringLiterals));
+				m => RemoveOutsideLiteral(m, mtcStrings));
 		}
 
 		private static MatchCollection FindStringLiterals(string extract)
@@ -182,9 +186,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
-		private static string ConvertVerbatimStrings(string translating, MatchCollection stringLiterals)
+		private static string ConvertVerbatimStrings(string translating)
 		{
-			var c = stringLiterals.Count;
+			var stringLiterals = FindStringLiterals(translating);
+			var c              = stringLiterals.Count;
 			// Process in reverse order to keep positions in stringLiterals valid
 			for (var i = c - 1; i >= 0; i--) {
 				if (stringLiterals[i].Value.StartsWith("@")) {
@@ -214,7 +219,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var blnLiteral  = strArgument.StartsWith("\"");
 			var mtcFormats  = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
 			if (blnLiteral && (mtcFormats.Count > 0)) {
-				// printf or fprintf. TODO : Better format handling
+				// printf or fprintf
 				strArgument = Regex.Replace(strArgument, @"[{]\d+(.*?)[}]", ConvertFormatSpecifier);
 				if (blnNewLine && strArgument.EndsWith(");")) {
 					strArgument = strArgument.Replace("\",", "\\n\",");
@@ -239,8 +244,6 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string TranslateFileInputOutput(string translating)
 		{
-			// translating = Regex.Replace(translating, @"", "");
-
 			translating = Regex.Replace(translating, @"new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
 
 			translating = translating.Replace("SeekOrigin.Begin", "SEEK_SET").Replace("SeekOrigin.Current", "SEEK_CUR")
@@ -282,6 +285,66 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ReplaceSeekCall(Match m)
 		{
 			return "fseek(" + m.Groups[1].Value.Replace(".BaseStream", "") + ", " + m.Groups[2].Value + ",";
+		}
+
+		private static string TranslateInitObjects(string translating)
+		{
+			translating =  Regex.Replace(translating,
+				@"([A-Za-z0-9_\[\]*]+)\s+([A-Za-z0-9_\[\]]+)\s+= new ([A-Za-z0-9<>_\[\]()]+);", ConvertInit);
+			translating = translating.Replace("Calculation InitCalculation(", "Calculation* InitCalculation(");
+			return translating;
+		}
+
+		private static string ConvertInit(Match m)
+		{
+			var type     = m.Groups[1].Value;
+			var variable = m.Groups[2].Value;
+			var ctor     = m.Groups[3].Value;
+			if (variable.EndsWith("[]")) { // array
+				var bracket = ctor.IndexOf('[');
+				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
+				return type + "* " + variable.Replace("[]", "") + " = calloc(" + count + ", sizeof(" + type + "));";
+			} else if (ctor.StartsWith("List<")) {
+				return type + " " + variable + " = NULL; int32_t " + variable + "Count = 0;";
+			} else if (ctor.EndsWith("()")) { // struct
+				return type + "* " + variable + " = calloc(1, sizeof(" + type + "));";
+			} else {
+				return m.Value; // i.e. no change
+			}
+		}
+
+		private static string AddressMemberAccess(string translating)
+		{
+			var mtcStructs = Regex.Matches(translating, @"struct ([A-Za-z0-9_]+)\s+{(.*?)}", RegexOptions.Singleline);
+			for (var i = 0; i < mtcStructs.Count; i++) {
+				var mtcMembers = Regex.Matches(mtcStructs[i].Groups[2].Value, @"[A-Za-z0-9*_]+\s+([A-Za-z0-9_]+);");
+				for (var j = 0; j < mtcMembers.Count; j++) {
+					var member = mtcMembers[j].Groups[1].Value;
+					translating = translating.Replace("." + member, "->" + member);
+				}
+			}
+			return translating.Replace("]->", "].");
+		}
+
+		private static string HandleCounts(string translating)
+		{
+			// translating = Regex.Replace(translating, @"", "");
+			translating = Regex.Replace(translating, @"([<=>]+) ([A-Za-z0-9_]+)[.]Count", "$1 $2Count");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Count ([<=>]+)", "$1Count $2");
+			translating = translating.Replace("void Main(char* args[])", "int main(int argc, char* argv[])");
+			translating = translating.Replace("args.Length", "(argc - 1)").Replace("args[", "argv[1 + ");
+			translating = translating.Replace("Search(LinkData* link, char* name)", "Search(LinkData* link, int32_t linkCount, char* name)");
+			translating = Regex.Replace(translating, @"Search[(]([A-Za-z]+),", "Search($1, $1Count,");
+			translating = translating.Replace("char* GetNameChars(FILE* fileSob)", "char* GetNameChars(FILE* fileSob, int32_t* nametempCount)");
+			translating = translating.Replace("char* nametemp = NULL; int32_t nametempCount = 0;", "char* nametemp = NULL; *nametempCount = 0;");
+			translating = translating.Replace("char* nametemp = GetNameChars(fileSob);", "int32_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);");
+			translating = translating.Replace("return String.Concat(GetNameChars(fileSob));", "int32_t Count; return String.Concat(GetNameChars(fileSob, &Count));");
+			return translating;
+		}
+
+		private static string TranslateSpecificCalls(string translating)
+		{
+			return Regex.Replace(translating, @"([A-Za-z0-9_\[\]]+)\.Name\.Equals[(]([A-Za-z0-9_]+)[)]", "strcmp($1.Name, $2) == 0");
 		}
 	}
 }
