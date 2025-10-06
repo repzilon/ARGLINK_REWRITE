@@ -232,13 +232,14 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 				Console.WriteLine("----LINK");
 				for (idx = 0; idx < sobInput; idx++) {
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
+					long fileSize = fileSob.BaseStream.Length;
 					Console.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (SOBJWasRead(fileSob)) {
-						if (startLink[idx] < (fileSob.BaseStream.Length - 3)) {
+						if (startLink[idx] < (fileSize - 3)) {
 							Console.WriteLine("{0:X}", startLink[idx]);
 							fileSob.BaseStream.Seek(startLink[idx], SeekOrigin.Begin);
-							while (fileSob.BaseStream.Position < fileSob.BaseStream.Length - 1) {
+							while (fileSob.BaseStream.Position < fileSize - 1) {
 								Console.WriteLine("-{0:X}", fileSob.BaseStream.Position);
 								string name   = GetName(fileSob);
 								int    nameId = Search(link, name);
