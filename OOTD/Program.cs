@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -199,6 +200,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					for (var j = 0; j < strarLines.Length; j++) {
 						stbLiteral.Append('"').Append(strarLines[j].Replace("\t", "\\t")).AppendLine("\\n\"");
 					}
+
 					translating = translating.Replace(stringLiterals[i].Value, stbLiteral.ToString());
 				}
 			}
@@ -279,6 +281,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			} else if (strMode == "Text") {
 				strMode = "r";
 			}
+
 			return "fopen(" + m.Groups[2].Value + ", \"" + strMode + "\")";
 		}
 
@@ -289,9 +292,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string TranslateInitObjects(string translating)
 		{
-			translating =  Regex.Replace(translating,
+			translating = Regex.Replace(translating,
 				@"([A-Za-z0-9_\[\]*]+)\s+([A-Za-z0-9_\[\]]+)\s+= new ([A-Za-z0-9<>_\[\]()]+);", ConvertInit);
 			translating = translating.Replace("Calculation InitCalculation(", "Calculation* InitCalculation(");
+			translating = Regex.Replace(translating, @"Calculation\s+([A-Za-z0-9_]+)\s+= InitCalculation[(]",
+				"Calculation* $1 = InitCalculation(");
 			return translating;
 		}
 
@@ -323,6 +328,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					translating = translating.Replace("." + member, "->" + member);
 				}
 			}
+
 			return translating.Replace("]->", "].");
 		}
 
@@ -344,7 +350,52 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string TranslateSpecificCalls(string translating)
 		{
-			return Regex.Replace(translating, @"([A-Za-z0-9_\[\]]+)\.Name\.Equals[(]([A-Za-z0-9_]+)[)]", "strcmp($1.Name, $2) == 0");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_\[\]]+)\.Name\.Equals[(]([A-Za-z0-9_]+)[)]",
+				"strcmp($1.Name, $2) == 0");
+
+			var translating1 = translating;
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Add[(]([A-Za-z0-9_]+)[)]",
+				m => TranslateListAdd(m, translating1));
+
+			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) String\.Concat[(](.+)[)]",
+				TranslateStringConcat);
+
+			return translating;
+		}
+
+		private static string TranslateListAdd(Match m, string translating1)
+		{
+			var list      = m.Groups[1].Value;
+			var item      = m.Groups[2].Value;
+			var mtcCount  = Regex.Match(translating1, @"(([A-Za-z0-9_]+)\s+|[*])" + list + "Count = 0");
+			var countType = mtcCount.Groups[1].Value.Trim();
+			var mtcList   = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL");
+			var listType  = mtcList.Groups[1].Value;
+			// (*nametempCount)++; nametemp = realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check
+			return String.Format(CultureInfo.InvariantCulture, countType == "*" ? // is count is a passed pointer?
+					"(*{0}Count)++; {0} = realloc({0}, *{0}Count * sizeof({2})); {0}[*{0}Count - 1] = {3}{1}"
+					: "{0}Count++; {0} = realloc({0}, {0}Count * sizeof({2})); {0}[{0}Count - 1] = {3}{1}",
+				list, item, listType, listType == "char" ? "" : "*");
+		}
+
+		private static string TranslateStringConcat(Match m)
+		{
+			var leftHand    = m.Groups[1].Value.Trim();
+			var rightHand   = m.Groups[2].Value;
+			var ciInvariant = CultureInfo.InvariantCulture;
+			if (rightHand.Contains("(") && rightHand.Contains(")")) { // function call on right hand
+				// GetNameChars[(](.*),\s+(.*Count)[)]
+				var functionName = rightHand.Substring(0, rightHand.IndexOf("(", StringComparison.Ordinal));
+				var mtcCall      = Regex.Match(rightHand, functionName + @"[(](.*),\s+(.*Count)[)]");
+				var countArg     = mtcCall.Groups[2].Value.Replace("&", "");
+				return String.Format(ciInvariant,
+					"char* functionResult = {1}; char* resultString = calloc({2} + 1, sizeof(char)); memmove(resultString, functionResult, {2}); {0} resultString",
+					leftHand, rightHand, countArg);
+			} else {
+				return String.Format(ciInvariant,
+					"char* {1}String = calloc({1}Count + 1, sizeof(char)); memmove({1}String, {1}, {1}Count);{0} {1}String",
+					leftHand, rightHand);
+			}
 		}
 	}
 }
