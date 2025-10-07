@@ -254,6 +254,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.BaseStream\.Position", "ftell($1)");
 
+			// I would normally save the current position to a variable, then restore it with fseek, but there is
+			// already a fseek to the first byte right after.
+			translating = Regex.Replace(translating,
+				@"([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)\s+=\s+([A-Za-z0-9_]+)\.BaseStream\.Length",
+				"fseek($3, 0, SEEK_END); $1 $2 = ftell($3)");
+
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Read(Char|Byte)\(\)", "fgetc($1)");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadInt32\(\)", "ReadLEInt32($1)");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadUInt16\(\)", "fgetc($1) | (fgetc($1) << 8)");
@@ -329,7 +335,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				}
 			}
 
-			return translating.Replace("]->", "].");
+			return translating.Replace("]->", "].")
+				.Replace("calctemp = linkcalc[calcidx]", "calctemp = &linkcalc[calcidx]")
+				.Replace("linkcalc[calcidx] = calctemp", "linkcalc[calcidx] = *calctemp");
 		}
 
 		private static string HandleCounts(string translating)
@@ -360,17 +368,31 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) String\.Concat[(](.+)[)]",
 				TranslateStringConcat);
 
+			var translating2 = translating;
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.RemoveAt[(]([A-Za-z0-9_]+)[)];",
+				m => TranslateListRemoveAt(m, translating2));
+
 			return translating;
+		}
+
+		private static string TranslateListRemoveAt(Match m, string translating1)
+		{
+			var list     = m.Groups[1].Value;
+			var at       = m.Groups[2].Value;
+			var listType = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL").Groups[1].Value;
+			return String.Format(CultureInfo.InvariantCulture,
+				"int32_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}"+
+				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}"+
+				"}}{0}{1}Count--;{0}{1} = realloc({1}, {1}Count * sizeof({3}));",
+				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType);
 		}
 
 		private static string TranslateListAdd(Match m, string translating1)
 		{
 			var list      = m.Groups[1].Value;
 			var item      = m.Groups[2].Value;
-			var mtcCount  = Regex.Match(translating1, @"(([A-Za-z0-9_]+)\s+|[*])" + list + "Count = 0");
-			var countType = mtcCount.Groups[1].Value.Trim();
-			var mtcList   = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL");
-			var listType  = mtcList.Groups[1].Value;
+			var countType = Regex.Match(translating1, @"(([A-Za-z0-9_]+)\s+|[*])" + list + "Count = 0").Groups[1].Value.Trim();
+			var listType = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL").Groups[1].Value;
 			// (*nametempCount)++; nametemp = realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check
 			return String.Format(CultureInfo.InvariantCulture, countType == "*" ? // is count is a passed pointer?
 					"(*{0}Count)++; {0} = realloc({0}, *{0}Count * sizeof({2})); {0}[*{0}Count - 1] = {3}{1}"
