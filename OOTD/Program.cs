@@ -1,8 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -159,7 +158,13 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string RemoveOutsideLiteral(Match m, MatchCollection literals)
 		{
-			return literals.Cast<Match>().Any(x => InsideStringLiteral(m, x)) ? m.Value : "";
+			//return literals.Cast<Match>().Any(x => InsideStringLiteral(m, x)) ? m.Value : "";
+			foreach (Match x in literals) {
+				if (InsideStringLiteral(m, x)) {
+					return m.Value;
+				}
+			}
+			return "";
 		}
 
 		private static bool InsideStringLiteral(Match what, Match literal)
@@ -178,7 +183,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ReplaceDataTypeOfVariables(string translating)
 		{
 			foreach (var kvp in s_dicTypeMapping) {
-				var isGeneric   = kvp.Key.Contains('<');
+				var isGeneric   = kvp.Key.Contains("<");
 				var pattern     = isGeneric ? kvp.Key + " " : @"\b" + kvp.Key + @"\b";
 				var replacement = isGeneric ? kvp.Value + " " : kvp.Value;
 				translating = Regex.Replace(translating, pattern, replacement);
