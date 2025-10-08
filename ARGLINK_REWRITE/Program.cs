@@ -265,8 +265,13 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								byte calccheck1 = fileSob.ReadByte();
 								byte calccheck2 = fileSob.ReadByte();
 								while (calccheck1 != 0 && calccheck2 != 0) {
-									calctemp = InitCalculation(link[nameId].Value, calccheck1 & 0x3,
-										calccheck2, calccheck1 > 0x80 ? link[nameId].Value : fileSob.ReadInt32());
+									// Note: ReadInt32() introduces a side effect and must be called
+									// under any circumstances
+									calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
+										calccheck2, fileSob.ReadInt32());
+									if (calccheck1 > 0x80) {
+										calctemp.Value = link[nameId].Value;
+									}
 
 									calccheck1 = fileSob.ReadByte();
 									calccheck2 = fileSob.ReadByte();
@@ -348,7 +353,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								Console.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
 								byte format     = fileSob.ReadByte();
 								int  firstValue = linkcalc[0].Value;
-								if (format == 0x00) {  // 8-bit
+								if (format == 0x00) { // 8-bit
 									fileOut.Write((byte)firstValue);
 								} else if (format == 0x02) { // 16-bit
 									fileOut.Write((ushort)firstValue);
