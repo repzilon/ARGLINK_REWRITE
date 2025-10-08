@@ -198,7 +198,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var c              = stringLiterals.Count;
 			// Process in reverse order to keep positions in stringLiterals valid
 			for (var i = c - 1; i >= 0; i--) {
-				if (stringLiterals[i].Value.StartsWith("@")) {
+				if (stringLiterals[i].Value.StartsWith("@", StringComparison.Ordinal)) {
 					var strarLines = stringLiterals[i].Groups[2].Value
 						.Split("\r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
 					var stbLiteral = new StringBuilder(stringLiterals[i].Length);
@@ -289,9 +289,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				strMode = "rb";
 			} else if (strMethod == "Write") {
 				strMode = "wb";
-			} else if (strMode == "Text") {
+			} /*else if (strMode == "Text") {
 				strMode = "r";
-			}
+			}// */
 
 			return "fopen(" + m.Groups[2].Value + ", \"" + strMode + "\")";
 		}
@@ -316,14 +316,14 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var type     = m.Groups[1].Value;
 			var variable = m.Groups[2].Value;
 			var ctor     = m.Groups[3].Value;
-			if (variable.EndsWith("[]")) { // array
+			if (variable.EndsWith("[]", StringComparison.Ordinal)) { // array
 				var bracket = ctor.IndexOf('[');
 				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
-				return type + "* " + variable.Replace("[]", "") + " = calloc(" + count + ", sizeof(" + type + "));";
-			} else if (ctor.StartsWith("List<")) {
-				return type + " " + variable + " = NULL; int32_t " + variable + "Count = 0;";
-			} else if (ctor.EndsWith("()")) { // struct
-				return type + "* " + variable + " = calloc(1, sizeof(" + type + "));";
+				return String.Format("{0}* {1} = ({0}*)calloc({2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
+			} else if (ctor.StartsWith("List<", StringComparison.Ordinal)) {
+				return String.Format("{0} {1} = NULL; int32_t {1}Count = 0;", type, variable);
+			} else if (ctor.EndsWith("()", StringComparison.Ordinal)) { // struct
+				return String.Format("{0}* {1} = ({0}*)calloc(1, sizeof({0}));", type, variable);
 			} else {
 				return m.Value; // i.e. no change
 			}
@@ -371,7 +371,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				m => TranslateListAdd(m, translating1));
 
 			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) String\.Concat[(](.+)[)]",
-				TranslateStringConcat);
+				TranslateStringFromCharArray);
+
+			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) new String[(](.+)[.]ToArray[(][)][)]",
+				TranslateStringFromCharArray);
 
 			var translating2 = translating;
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.RemoveAt[(]([A-Za-z0-9_]+)[)];",
@@ -388,7 +391,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return String.Format(CultureInfo.InvariantCulture,
 				"int32_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}"+
 				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}"+
-				"}}{0}{1}Count--;{0}{1} = realloc({1}, {1}Count * sizeof({3}));",
+				"}}{0}{1}Count--;{0}{1} = ({3}*)realloc({1}, {1}Count * sizeof({3}));",
 				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType);
 		}
 
@@ -400,12 +403,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var listType = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL").Groups[1].Value;
 			// (*nametempCount)++; nametemp = realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check
 			return String.Format(CultureInfo.InvariantCulture, countType == "*" ? // is count is a passed pointer?
-					"(*{0}Count)++; {0} = realloc({0}, *{0}Count * sizeof({2})); {0}[*{0}Count - 1] = {3}{1}"
-					: "{0}Count++; {0} = realloc({0}, {0}Count * sizeof({2})); {0}[{0}Count - 1] = {3}{1}",
+					"(*{0}Count)++; {0} = ({2}*)realloc({0}, *{0}Count * sizeof({2})); {0}[*{0}Count - 1] = {3}{1}"
+					: "{0}Count++; {0} = ({2}*)realloc({0}, {0}Count * sizeof({2})); {0}[{0}Count - 1] = {3}{1}",
 				list, item, listType, listType == "char" ? "" : "*");
 		}
 
-		private static string TranslateStringConcat(Match m)
+		private static string TranslateStringFromCharArray(Match m)
 		{
 			var leftHand    = m.Groups[1].Value.Trim();
 			var rightHand   = m.Groups[2].Value;
@@ -416,11 +419,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				var mtcCall      = Regex.Match(rightHand, functionName + @"[(](.*),\s+(.*Count)[)]");
 				var countArg     = mtcCall.Groups[2].Value.Replace("&", "");
 				return String.Format(ciInvariant,
-					"char* functionResult = {1}; char* resultString = calloc({2} + 1, sizeof(char)); memmove(resultString, functionResult, {2}); {0} resultString",
+					"char* functionResult = {1}; char* resultString = (char*)calloc({2} + 1, sizeof(char)); memmove(resultString, functionResult, {2}); {0} resultString",
 					leftHand, rightHand, countArg);
 			} else {
 				return String.Format(ciInvariant,
-					"char* {1}String = calloc({1}Count + 1, sizeof(char)); memmove({1}String, {1}, {1}Count);{0} {1}String",
+					"char* {1}String = (char*)calloc({1}Count + 1, sizeof(char)); memmove({1}String, {1}, {1}Count);{0} {1}String",
 					leftHand, rightHand);
 			}
 		}

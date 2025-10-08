@@ -103,7 +103,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 
 		private static string GetName(BinaryReader fileSob)
 		{
-			return String.Concat(GetNameChars(fileSob));
+			return new String(GetNameChars(fileSob).ToArray());
 		}
 
 		private static bool SOBJWasRead(BinaryReader fileSob)
@@ -216,7 +216,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								break;
 							}
 
-							linktemp.Name  = String.Concat(nametemp);
+							linktemp.Name  = new String(nametemp.ToArray());
 							linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
 							Console.WriteLine("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 							link.Add(linktemp);

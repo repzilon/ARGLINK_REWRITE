@@ -83,7 +83,7 @@ char* GetNameChars(FILE* fileSob, int32_t* nametempCount)
 	while (check != 0) {
 		check = fgetc(fileSob);
 		if (check != 0) {
-			(*nametempCount)++; nametemp = realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check;
+			(*nametempCount)++; nametemp = (char*)realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check;
 		}
 	}
 
@@ -92,7 +92,7 @@ char* GetNameChars(FILE* fileSob, int32_t* nametempCount)
 
 char* GetName(FILE* fileSob)
 {
-	int32_t Count; char* functionResult = GetNameChars(fileSob, &Count); char* resultString = calloc(Count + 1, sizeof(char)); memmove(resultString, functionResult, Count); return resultString;
+	char* functionResult = GetNameChars(fileSob); char* resultString = (char*)calloc( + 1, sizeof(char)); memmove(resultString, functionResult, ); return resultString;
 }
 
 bool SOBJWasRead(FILE* fileSob)
@@ -105,7 +105,7 @@ bool SOBJWasRead(FILE* fileSob)
 
 Calculation* InitCalculation(int32_t deep, int32_t priority, int32_t operation, int32_t value)
 {
-	Calculation* calctemp = calloc(1, sizeof(Calculation));
+	Calculation* calctemp = (Calculation*)calloc(1, sizeof(Calculation));
 	calctemp->Deep = deep;
 	calctemp->Priority = priority;
 	calctemp->Operation = operation;
@@ -121,7 +121,7 @@ int32_t ReadLEInt32(FILE* fileSob)
 
 void Recopy(FILE* source, int32_t size, FILE* destination, int32_t offset)
 {
-	uint8_t* buffer = calloc(size, sizeof(uint8_t));
+	uint8_t* buffer = (uint8_t*)calloc(size, sizeof(uint8_t));
 	fread(buffer, sizeof(uint8_t), size, source);
 	fseek(destination, offset, SEEK_SET);
 	fwrite(buffer, sizeof(uint8_t), size, destination);
@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 		//SOB files, Step 1 & 2 - input all data and list all links
 		LinkData* link = NULL; int32_t linkCount = 0;
 		int32_t sobInput = (argc - 1) - 1;
-		int64_t* startLink = calloc(sobInput, sizeof(int64_t));
+		int64_t* startLink = (int64_t*)calloc(sobInput, sizeof(int64_t));
 		int32_t idx;
 
 		for (idx = 0; idx < sobInput; idx++) {
@@ -198,17 +198,17 @@ int main(int argc, char* argv[])
 
 				//Step 2 - Get all extern names and values
 				do {
-					LinkData* linktemp = calloc(1, sizeof(LinkData));
+					LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData));
 					int32_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);
 
 					if (nametempCount <= 0) {
 						break;
 					}
 
-					char* nametempString = calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
+					char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 					linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
 					printf("--%s : %dX", linktemp->Name, linktemp->Value);
-					linkCount++; link = realloc(link, linkCount * sizeof(LinkData)); link[linkCount - 1] = *linktemp;
+					linkCount++; link = (LinkData*)realloc(link, linkCount * sizeof(LinkData)); link[linkCount - 1] = *linktemp;
 				} while (fgetc(fileSob) == 0);
 
 				startLink[idx] = ftell(fileSob);
@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
 
 						Calculation* linkcalc = NULL; int32_t linkcalcCount = 0;
 						Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
-						linkcalcCount++; linkcalc = realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
+						linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 
 						printf("--%s : %dX", name, link[nameId].Value);
 
@@ -259,7 +259,7 @@ int main(int argc, char* argv[])
 
 							calccheck1 = fgetc(fileSob);
 							calccheck2 = fgetc(fileSob);
-							linkcalcCount++; linkcalc = realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
+							linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 						}
 
 						//All operations have been found, now do the calculations
@@ -333,7 +333,7 @@ int main(int argc, char* argv[])
 								memmove(&(linkcalc[highestpriidx]), &(linkcalc[highestpriidx + 1]), after * sizeof(Calculation));
 							}
 							linkcalcCount--;
-							linkcalc = realloc(linkcalc, linkcalcCount * sizeof(Calculation));
+							linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation));
 						}
 
 						//And then put the data in
