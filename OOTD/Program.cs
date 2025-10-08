@@ -246,7 +246,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ConvertFormatSpecifier(Match m2)
 		{
 			// Very rough but works for now
-			return m2.Groups[1].Value == ":X" ? "%dX" : "%s";
+			return m2.Groups[1].Value == ":X" ? "%8X" : "%s";
 		}
 
 		private static string TranslateFileInputOutput(string translating)

@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
 					int32_t size = ReadLEInt32(fileSob);
 					int32_t type = fgetc(fileSob);
 
-					printf("%dX: 0x%dX /// Size: 0x%dX / Offset 0x%dX / Type %dX", i,
+					printf("%8X: 0x%8X /// Size: 0x%8X / Offset 0x%8X / Type %8X", i,
 						start, size, offset, type);
 
 					if (type == 0) {
@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
 
 					char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 					linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
-					printf("--%s : %dX", linktemp->Name, linktemp->Value);
+					printf("--%s : %8X", linktemp->Name, linktemp->Value);
 					linkCount++; link = (LinkData*)realloc(link, linkCount * sizeof(LinkData)); link[linkCount - 1] = *linktemp;
 				} while (fgetc(fileSob) == 0);
 
@@ -226,10 +226,10 @@ int main(int argc, char* argv[])
 			fseek(fileSob, 0, SEEK_SET);
 			if (SOBJWasRead(fileSob)) {
 				if (startLink[idx] < (fileSize - 3)) {
-					printf("%dX", startLink[idx]);
+					printf("%8X", startLink[idx]);
 					fseek(fileSob, startLink[idx], SEEK_SET);
 					while (ftell(fileSob) < fileSize - 1) {
-						printf("-%dX", ftell(fileSob));
+						printf("-%8X", ftell(fileSob));
 						char* name = GetName(fileSob);
 						int32_t nameId = Search(link, linkCount, name);
 
@@ -237,13 +237,13 @@ int main(int argc, char* argv[])
 						Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 						linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 
-						printf("--%s : %dX", name, link[nameId].Value);
+						printf("--%s : %8X", name, link[nameId].Value);
 
 						if (fgetc(fileSob) != 0) {
 							fseek(fileSob, -1, SEEK_CUR);
 							name = GetName(fileSob);
 							nameId = Search(link, linkCount, name);
-							printf("----%s : %dX", name, link[nameId].Value);
+							printf("----%s : %8X", name, link[nameId].Value);
 							fgetc(fileSob);
 						}
 
@@ -311,25 +311,25 @@ int main(int argc, char* argv[])
 							int32_t operation = linkcalc[highestpriidx].Operation;
 							int32_t calcValue = linkcalc[highestpriidx].Value;
 							if (operation == 0x02) { //Shift Right
-								printf("%dX >> %dX", calctemp->Value, calcValue);
+								printf("%8X >> %8X", calctemp->Value, calcValue);
 								calctemp->Value >>= calcValue;
 							} else if (operation == 0x0C) { //Add
-								printf("%dX + %dX", calctemp->Value, calcValue);
+								printf("%8X + %8X", calctemp->Value, calcValue);
 								calctemp->Value += calcValue;
 							} else if (operation == 0x0E) { //Sub
-								printf("%dX - %dX", calctemp->Value, calcValue);
+								printf("%8X - %8X", calctemp->Value, calcValue);
 								calctemp->Value -= calcValue;
 							} else if (operation == 0x10) { //Mul
-								printf("%dX * %dX", calctemp->Value, calcValue);
+								printf("%8X * %8X", calctemp->Value, calcValue);
 								calctemp->Value *= calcValue;
 							} else if (operation == 0x12) { //Div
-								printf("%dX / %dX", calctemp->Value, calcValue);
+								printf("%8X / %8X", calctemp->Value, calcValue);
 								calctemp->Value /= calcValue;
 							} else if (operation == 0x16) { //And
-								printf("%dX & %dX", calctemp->Value, calcValue);
+								printf("%8X & %8X", calctemp->Value, calcValue);
 								calctemp->Value &= calcValue;
 							} else {
-								printf("ERROR (CALCULATION) [%dX]", operation);
+								printf("ERROR (CALCULATION) [%8X]", operation);
 							}
 
 							linkcalc[calcidx] = *calctemp;
@@ -344,7 +344,7 @@ int main(int argc, char* argv[])
 						//And then put the data in
 						int32_t offset = ReadLEInt32(fileSob);
 						fseek(fileOut, offset + 1, SEEK_SET);
-						printf("----%dX : %dX", offset, linkcalc[0].Value);
+						printf("----%8X : %8X", offset, linkcalc[0].Value);
 						uint8_t format = fgetc(fileSob);
 						int32_t firstValue = linkcalc[0].Value;
 						if (format == 0x00) { // 8-bit
