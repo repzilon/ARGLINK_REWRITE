@@ -358,6 +358,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = translating.Replace("char* nametemp = NULL; int32_t nametempCount = 0;", "char* nametemp = NULL; *nametempCount = 0;");
 			translating = translating.Replace("char* nametemp = GetNameChars(fileSob);", "int32_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);");
 			translating = translating.Replace("return String.Concat(GetNameChars(fileSob));", "int32_t Count; return String.Concat(GetNameChars(fileSob, &Count));");
+			translating = translating.Replace("return new String(GetNameChars(fileSob).ToArray());", "int32_t Count; return new String(GetNameChars(fileSob, &Count).ToArray());");
 			return translating;
 		}
 

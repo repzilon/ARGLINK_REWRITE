@@ -6,6 +6,9 @@ using System.IO;
 // ReSharper disable SuggestVarOrType_Elsewhere
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 // ReSharper disable UseObjectOrCollectionInitializer
+#pragma warning disable U2U1104 // Do not use composite formatting to concatenate strings
+#pragma warning disable HAA0601 // Value type to reference type conversion causing boxing allocation
+#pragma warning disable HAA0101 // Array allocation for params parameter
 
 namespace ARGLINK_REWRITE
 {

@@ -92,7 +92,7 @@ char* GetNameChars(FILE* fileSob, int32_t* nametempCount)
 
 char* GetName(FILE* fileSob)
 {
-	char* functionResult = GetNameChars(fileSob); char* resultString = (char*)calloc( + 1, sizeof(char)); memmove(resultString, functionResult, ); return resultString;
+	int32_t Count; char* functionResult = GetNameChars(fileSob, &Count); char* resultString = (char*)calloc(Count + 1, sizeof(char)); memmove(resultString, functionResult, Count); return resultString;
 }
 
 bool SOBJWasRead(FILE* fileSob)
@@ -254,8 +254,13 @@ int main(int argc, char* argv[])
 						uint8_t calccheck1 = fgetc(fileSob);
 						uint8_t calccheck2 = fgetc(fileSob);
 						while (calccheck1 != 0 && calccheck2 != 0) {
-							calctemp = InitCalculation(link[nameId].Value, calccheck1 & 0x3,
-								calccheck2, calccheck1 > 0x80 ? link[nameId].Value : ReadLEInt32(fileSob));
+							// Note: ReadInt32() introduces a side effect and must be called
+							// under any circumstances
+							calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
+								calccheck2, ReadLEInt32(fileSob));
+							if (calccheck1 > 0x80) {
+								calctemp->Value = link[nameId].Value;
+							}
 
 							calccheck1 = fgetc(fileSob);
 							calccheck2 = fgetc(fileSob);
