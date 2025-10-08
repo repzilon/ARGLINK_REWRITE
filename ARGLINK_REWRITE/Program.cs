@@ -141,7 +141,8 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 		private static void Main(string[] args)
 		{
 			OutputLogo();
-			for (int i = 0; i < args.Length; i++) {
+			int i;
+			for (i = 0; i < args.Length; i++) {
 				Console.WriteLine(args[i]);
 			}
 
@@ -154,7 +155,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 
 				//Fill Output file to 1MB
 				fileOut.Seek(0, SeekOrigin.Begin);
-				for (int i = 0; i < 0x100000; i++) {
+				for (i = 0; i < 0x100000; i++) {
 					fileOut.BaseStream.WriteByte(0xFF);
 				}
 
@@ -162,8 +163,9 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 				List<LinkData> link      = new List<LinkData>();
 				int            sobInput  = args.Length - 1;
 				long[]         startLink = new long[sobInput];
+				int            idx;
 
-				for (int idx = 0; idx < sobInput; idx++) {
+				for (idx = 0; idx < sobInput; idx++) {
 					//Check if SOB file is indeed a SOB file
 					int count;
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
@@ -175,7 +177,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 						count = fileSob.ReadByte();
 						fileSob.ReadByte();
 
-						for (int i = 0; i < count; i++) {
+						for (i = 0; i < count; i++) {
 							//Step 1 - Input all data into output
 							long start = fileSob.BaseStream.Position;
 							int offset = ReadLEInt32(fileSob);
@@ -229,7 +231,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 
 				//Step 3 - Link everything
 				Console.WriteLine("----LINK");
-				for (int idx = 0; idx < sobInput; idx++) {
+				for (idx = 0; idx < sobInput; idx++) {
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
 					long fileSize = fileSob.BaseStream.Length;
 					Console.WriteLine("Open {0}", args[idx + 1]);
@@ -282,7 +284,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									//Check for highest deep
 									int highestdeep    = -1;
 									int highestdeepidx = -1;
-									for (int i = 1; i < linkcalc.Count; i++) {
+									for (i = 1; i < linkcalc.Count; i++) {
 										//Get the first highest one
 										if (highestdeep < linkcalc[i].Deep) {
 											highestdeep    = linkcalc[i].Deep;
@@ -293,7 +295,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									//Check for highest priority
 									int highestpri    = -1;
 									int highestpriidx = -1;
-									for (int i = highestdeepidx; i < linkcalc.Count; i++) {
+									for (i = highestdeepidx; i < linkcalc.Count; i++) {
 										//Get the first highest one
 										if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
 											break;
@@ -307,7 +309,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 
 									//Check for latest deep
 									int calcidx = -1;
-									for (int i = highestpriidx; i >= 0; i--) {
+									for (i = highestpriidx; i >= 0; i--) {
 										//Get the first one that comes
 										if (highestdeep > linkcalc[i].Deep || highestpri > linkcalc[i].Priority) {
 											calcidx = i;
