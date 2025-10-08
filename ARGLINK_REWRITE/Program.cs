@@ -231,13 +231,14 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 				Console.WriteLine("----LINK");
 				for (int idx = 0; idx < sobInput; idx++) {
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
+					long fileSize = fileSob.BaseStream.Length;
 					Console.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (SOBJWasRead(fileSob)) {
-						if (startLink[idx] < (fileSob.BaseStream.Length - 3)) {
-							Console.WriteLine(startLink[idx].ToString("X"));
+						if (startLink[idx] < (fileSize - 3)) {
+							Console.WriteLine("{0:X}", startLink[idx]);
 							fileSob.BaseStream.Seek(startLink[idx], SeekOrigin.Begin);
-							while (fileSob.BaseStream.Position < fileSob.BaseStream.Length - 1) {
+							while (fileSob.BaseStream.Position < fileSize - 1) {
 								Console.WriteLine("-{0:X}", fileSob.BaseStream.Position);
 								string name   = GetName(fileSob);
 								int    nameId = Search(link, name);
@@ -317,30 +318,25 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									//Do the calculation
 									calctemp = linkcalc[calcidx];
 									int operation = linkcalc[highestpriidx].Operation;
+									int calcValue = linkcalc[highestpriidx].Value;
 									if (operation == 0x02) { //Shift Right
-										Console.WriteLine("{0:X} >> {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value >>= linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} >> {1:X}", calctemp.Value, calcValue);
+										calctemp.Value >>= calcValue;
 									} else if (operation == 0x0C) { //Add
-										Console.WriteLine("{0:X} + {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value += linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} + {1:X}", calctemp.Value, calcValue);
+										calctemp.Value += calcValue;
 									} else if (operation == 0x0E) { //Sub
-										Console.WriteLine("{0:X} - {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value -= linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} - {1:X}", calctemp.Value, calcValue);
+										calctemp.Value -= calcValue;
 									} else if (operation == 0x10) { //Mul
-										Console.WriteLine("{0:X} * {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value *= linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} * {1:X}", calctemp.Value, calcValue);
+										calctemp.Value *= calcValue;
 									} else if (operation == 0x12) { //Div
-										Console.WriteLine("{0:X} / {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value /= linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} / {1:X}", calctemp.Value, calcValue);
+										calctemp.Value /= calcValue;
 									} else if (operation == 0x16) { //And
-										Console.WriteLine("{0:X} & {1:X}", calctemp.Value,
-											linkcalc[highestpriidx].Value);
-										calctemp.Value &= linkcalc[highestpriidx].Value;
+										Console.WriteLine("{0:X} & {1:X}", calctemp.Value, calcValue);
+										calctemp.Value &= calcValue;
 									} else {
 										Console.WriteLine("ERROR (CALCULATION) [{0:X}]", operation);
 									}
@@ -354,19 +350,20 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								fileOut.Seek(offset + 1, SeekOrigin.Begin);
 								Console.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
 								byte format = fileSob.ReadByte();
+								int  firstValue = linkcalc[0].Value;
 								if (format == 0x00) { // 8-bit
-									fileOut.Write((byte)linkcalc[0].Value);
+									fileOut.Write((byte)firstValue);
 								} else if (format == 0x02) { // 16-bit
-									fileOut.Write((ushort)linkcalc[0].Value);
+									fileOut.Write((ushort)firstValue);
 								} else if (format == 0x04) { // 24-bit
-									fileOut.Write((ushort)linkcalc[0].Value);
-									fileOut.Write((byte)(linkcalc[0].Value >> 16));
+									fileOut.Write((ushort)firstValue);
+									fileOut.Write((byte)(firstValue >> 16));
 								} else if (format == 0x0E) { // 8-bit
 									fileOut.Seek(offset, SeekOrigin.Begin);
-									fileOut.Write((byte)linkcalc[0].Value);
+									fileOut.Write((byte)firstValue);
 								} else if (format == 0x10) { // 16-bit
 									fileOut.Seek(offset, SeekOrigin.Begin);
-									fileOut.Write((ushort)linkcalc[0].Value);
+									fileOut.Write((ushort)firstValue);
 								} else {
 									Console.WriteLine("ERROR (OUTPUT)");
 								}
