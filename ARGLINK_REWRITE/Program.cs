@@ -114,6 +114,16 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 				   && fileSob.ReadByte() == 0x4A; //J
 		}
 
+		private static Calculation InitCalculation(int deep, int priority, int operation, int value)
+		{
+			Calculation calctemp = new Calculation();
+			calctemp.Deep      = deep;
+			calctemp.Priority  = priority;
+			calctemp.Operation = operation;
+			calctemp.Value     = value;
+			return calctemp;
+		}
+
 		private static int ReadLEInt32(BinaryReader fileSob)
 		{
 			return fileSob.ReadByte() | (fileSob.ReadByte() << 8) | (fileSob.ReadByte() << 16) |
@@ -233,11 +243,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								int    nameId = Search(link, name);
 
 								List<Calculation> linkcalc = new List<Calculation>();
-								Calculation       calctemp = new Calculation();
-								calctemp.Deep      = -1;
-								calctemp.Priority  = 0;
-								calctemp.Operation = 0;
-								calctemp.Value     = link[nameId].Value;
+								Calculation       calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 								linkcalc.Add(calctemp);
 
 								Console.WriteLine("--{0} : {1:X}", name, link[nameId].Value);
@@ -257,11 +263,10 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								byte calccheck1 = fileSob.ReadByte();
 								byte calccheck2 = fileSob.ReadByte();
 								while (calccheck1 != 0 && calccheck2 != 0) {
-									calctemp           = new Calculation();
-									calctemp.Deep      = (calccheck1 & 0x70) >> 4;
-									calctemp.Priority  = (calccheck1 & 0x3);
-									calctemp.Operation = calccheck2;
-									calctemp.Value     = fileSob.ReadInt32();
+									// Note: ReadInt32() introduces a side effect and must be called
+									// under any circumstances
+									calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
+										calccheck2, fileSob.ReadInt32());
 									if (calccheck1 > 0x80) {
 										calctemp.Value = link[nameId].Value;
 									}
