@@ -146,9 +146,9 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									}
 								}
 
-								Console.WriteLine($"--Open External File: {string.Concat(filepath)}");
+								Console.WriteLine($"--Open External File: {new String(filepath.ToArray())}");
 
-								fileExt = new BinaryReader(File.OpenRead(String.Concat(filepath)));
+								fileExt = new BinaryReader(File.OpenRead(new String(filepath.ToArray())));
 								fileExt.Read(buffer, 0, size);
 								fileOut.Seek(offset, SeekOrigin.Begin);
 								fileOut.Write(buffer, 0, size);
@@ -173,7 +173,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 								break;
 							}
 
-							linktemp.Name  = String.Concat(nametemp);
+							linktemp.Name  = new String(nametemp.ToArray());
 							linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
 							Console.WriteLine($"--{linktemp.Name} : {linktemp.Value:X}");
 							link.Add(linktemp);
@@ -211,7 +211,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 									}
 								}
 
-								string name     = string.Concat(nametemp);
+								string name     = new String(nametemp.ToArray());
 
 								//search
 								int nameId     = -1;
@@ -243,7 +243,7 @@ Please note: DOS has a limit on parameters, so please use the @ option.
 										}
 									}
 
-									name = String.Concat(nametemp);
+									name = new String(nametemp.ToArray());
 
 									for (int i = 0; i < link.Count; i++) {
 										if (link[i].Name.Equals(name)) {
