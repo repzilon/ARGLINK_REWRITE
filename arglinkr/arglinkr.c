@@ -228,9 +228,10 @@ int main(int argc, char* argv[])
 			printf("Open %s\n", argv[1 + idx + 1]);
 			fseek(fileSob, 0, SEEK_SET);
 			if (SOBJWasRead(fileSob)) {
-				if (startLink[idx] < (fileSize - 3)) {
-					printf("%8X\n", startLink[idx]);
-					fseek(fileSob, startLink[idx], SEEK_SET);
+				int64_t startIndex = startLink[idx];
+				if (startIndex < (fileSize - 3)) {
+					printf("%8X\n", startIndex);
+					fseek(fileSob, startIndex, SEEK_SET);
 					while (ftell(fileSob) < fileSize - 1) {
 						printf("-%8X\n", ftell(fileSob));
 						char* name = GetName(fileSob);

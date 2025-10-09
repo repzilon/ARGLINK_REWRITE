@@ -5,16 +5,18 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
+#pragma warning disable HAA0603 // Delegate allocation from a method group
+
 namespace Exploratorium.ArgSfx.OutOfThisDimension
 {
 	internal static class Program
 	{
-		private static readonly IDictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
+		private static readonly Dictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
 			{ "System", new[] { "stdbool.h", "stdint.h", "string.h", "stdlib.h" } },
 			{ "System.IO", new[] { "stdio.h" } }
 		};
 
-		private static readonly IDictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
+		private static readonly Dictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
 			{ "string", "char*" }, { "ushort", "uint16_t" }, { "int", "int32_t" }, { "long", "int64_t" },
 			{ "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
 			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" }
@@ -183,7 +185,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ReplaceDataTypeOfVariables(string translating)
 		{
 			foreach (var kvp in s_dicTypeMapping) {
-				var isGeneric   = kvp.Key.Contains("<");
+				var isGeneric   = kvp.Key.IndexOf('<') >= 0;
 				var pattern     = isGeneric ? kvp.Key + " " : @"\b" + kvp.Key + @"\b";
 				var replacement = isGeneric ? kvp.Value + " " : kvp.Value;
 				translating = Regex.Replace(translating, pattern, replacement);
@@ -319,11 +321,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			if (variable.EndsWith("[]", StringComparison.Ordinal)) { // array
 				var bracket = ctor.IndexOf('[');
 				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
-				return String.Format("{0}* {1} = ({0}*)calloc({2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
+				return QuickFormat("{0}* {1} = ({0}*)calloc({2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
 			} else if (ctor.StartsWith("List<", StringComparison.Ordinal)) {
-				return String.Format("{0} {1} = NULL; int32_t {1}Count = 0;", type, variable);
+				return QuickFormat("{0} {1} = NULL; int32_t {1}Count = 0;", type, variable);
 			} else if (ctor.EndsWith("()", StringComparison.Ordinal)) { // struct
-				return String.Format("{0}* {1} = ({0}*)calloc(1, sizeof({0}));", type, variable);
+				return QuickFormat("{0}* {1} = ({0}*)calloc(1, sizeof({0}));", type, variable);
 			} else {
 				return m.Value; // i.e. no change
 			}
@@ -371,11 +373,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Add[(]([A-Za-z0-9_]+)[)]",
 				m => TranslateListAdd(m, translating1));
 
-			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) String\.Concat[(](.+)[)]",
-				TranslateStringFromCharArray);
+			MatchEvaluator meNewString = TranslateStringFromCharArray;
+			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) String\.Concat[(](.+)[)]", meNewString);
 
 			translating = Regex.Replace(translating, @"(return|[A-Za-z0-9_>-]+\s+=) new String[(](.+)[.]ToArray[(][)][)]",
-				TranslateStringFromCharArray);
+				meNewString);
 
 			var translating2 = translating;
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.RemoveAt[(]([A-Za-z0-9_]+)[)];",
@@ -413,20 +415,30 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var leftHand    = m.Groups[1].Value.Trim();
 			var rightHand   = m.Groups[2].Value;
-			var ciInvariant = CultureInfo.InvariantCulture;
-			if (rightHand.Contains("(") && rightHand.Contains(")")) { // function call on right hand
+			var openParen   = rightHand.IndexOf('(');
+			if ((openParen >= 0) && (rightHand.IndexOf(')') > openParen)) { // function call on right hand
 				// GetNameChars[(](.*),\s+(.*Count)[)]
-				var functionName = rightHand.Substring(0, rightHand.IndexOf("(", StringComparison.Ordinal));
+				var functionName = rightHand.Substring(0, openParen);
 				var mtcCall      = Regex.Match(rightHand, functionName + @"[(](.*),\s+(.*Count)[)]");
 				var countArg     = mtcCall.Groups[2].Value.Replace("&", "");
-				return String.Format(ciInvariant,
+				return QuickFormat(
 					"char* functionResult = {1}; char* resultString = (char*)calloc({2} + 1, sizeof(char)); memmove(resultString, functionResult, {2}); {0} resultString",
 					leftHand, rightHand, countArg);
 			} else {
-				return String.Format(ciInvariant,
+				return QuickFormat(
 					"char* {1}String = (char*)calloc({1}Count + 1, sizeof(char)); memmove({1}String, {1}, {1}Count);{0} {1}String",
 					leftHand, rightHand);
 			}
+		}
+
+		private static string QuickFormat(string format, string arg0, string arg1)
+		{
+			return format.Replace("{0}", arg0).Replace("{1}", arg1);
+		}
+
+		private static string QuickFormat(string format, string arg0, string arg1, string arg2)
+		{
+			return format.Replace("{0}", arg0).Replace("{1}", arg1).Replace("{2}", arg2);
 		}
 	}
 }

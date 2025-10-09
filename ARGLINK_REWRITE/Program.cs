@@ -242,9 +242,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					Console.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (SOBJWasRead(fileSob)) {
-						if (startLink[idx] < (fileSize - 3)) {
-							Console.WriteLine("{0:X}", startLink[idx]);
-							fileSob.BaseStream.Seek(startLink[idx], SeekOrigin.Begin);
+						long startIndex = startLink[idx];
+						if (startIndex < (fileSize - 3)) {
+							Console.WriteLine("{0:X}", startIndex);
+							fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
 							while (fileSob.BaseStream.Position < fileSize - 1) {
 								Console.WriteLine("-{0:X}", fileSob.BaseStream.Position);
 								string name   = GetName(fileSob);
