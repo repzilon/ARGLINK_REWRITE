@@ -223,19 +223,19 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var blnStdError = !String.IsNullOrEmpty(m.Groups[1].Value);
 			var blnNewLine  = !String.IsNullOrEmpty(m.Groups[2].Value);
 			var strArgument = m.Groups[3].Value;
-			var blnLiteral  = strArgument.StartsWith("\"");
+			var blnLiteral  = strArgument.StartsWith("\"", StringComparison.Ordinal);
 			var mtcFormats  = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
 			if (blnLiteral && (mtcFormats.Count > 0)) {
 				// printf or fprintf
 				strArgument = Regex.Replace(strArgument, @"[{]\d+(.*?)[}]", ConvertFormatSpecifier);
-				if (blnNewLine && strArgument.EndsWith(");")) {
+				if (blnNewLine && strArgument.Trim().EndsWith(");", StringComparison.Ordinal)) {
 					strArgument = strArgument.Replace("\",", "\\n\",");
 				}
 
 				return (blnStdError ? "fprintf(stderr, " : "printf(") + strArgument;
 			} else {
 				// puts or fputs
-				if (blnStdError && strArgument.EndsWith("\");")) {
+				if (blnStdError && strArgument.EndsWith("\");", StringComparison.Ordinal)) {
 					strArgument = strArgument.Replace("\");", blnNewLine ? "\\n\", stderr);" : "\", stderr);");
 				}
 
