@@ -33,6 +33,7 @@ namespace ARGLINK_REWRITE
 		private static byte s_ioBuffersKiB = 10;
 		private static string s_defaultExtension = ".SOB";
 		private static ushort s_fabcardPort = 0x290;
+		private static ushort s_stringHashSize = 256;
 		private static byte s_memoryMiB = 2;
 		private static ushort s_printerPort = 0x378;
 		private static byte s_romType = 0x7D;
@@ -48,11 +49,13 @@ For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
 
 		private static void OutputUsage()
 		{
-			Console.WriteLine(@"ARGLINK [opts] obj1 [opts] obj2 [opts] obj3 [opts] obj4 ...
+			Console.WriteLine(@"ARGLINK_REWRITE <rom_output> <input_sob>...
+	to be changed to
+ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...
 All object file names are appended with .SOB if no extension is specified.
 CLI options can be placed in the ALFLAGS environment variable.
 A filename preceded with @ is a file list.
-Please note: DOS has a limit on parameters, so please use the @ option.
+Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.

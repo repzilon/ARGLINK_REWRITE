@@ -21,6 +21,7 @@ typedef struct Calculation {
 uint8_t s_ioBuffersKiB = 10;
 char* s_defaultExtension = ".SOB";
 uint16_t s_fabcardPort = 0x290;
+uint16_t s_stringHashSize = 256;
 uint8_t s_memoryMiB = 2;
 uint16_t s_printerPort = 0x378;
 uint8_t s_romType = 0x7D;
@@ -35,11 +36,13 @@ void OutputLogo()
 
 void OutputUsage()
 {
-	puts("ARGLINK [opts] obj1 [opts] obj2 [opts] obj3 [opts] obj4 ...\n"
+	puts("ARGLINK_REWRITE <rom_output> <input_sob>...\n"
+"to be changed to\n"
+"ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...\n"
 "All object file names are appended with .SOB if no extension is specified.\n"
 "CLI options can be placed in the ALFLAGS environment variable.\n"
 "A filename preceded with @ is a file list.\n"
-"Please note: DOS has a limit on parameters, so please use the @ option.\n"
+"Note: DOS has a 126-char limit on parameters, so please use the @ option.\n"
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
