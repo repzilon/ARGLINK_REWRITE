@@ -237,8 +237,13 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				return (blnStdError ? "fprintf(stderr, " : "printf(") + strArgument;
 			} else {
 				// puts or fputs
-				if (blnStdError && strArgument.EndsWith("\");", StringComparison.Ordinal)) {
-					strArgument = strArgument.Replace("\");", blnNewLine ? "\\n\", stderr);" : "\", stderr);");
+				if (blnStdError) {
+					var strTrimmedArg = strArgument.Trim();
+					if (strTrimmedArg.EndsWith("\");", StringComparison.Ordinal)) {
+						strArgument = strArgument.Replace("\");", blnNewLine ? "\\n\", stderr);" : "\", stderr);");
+					} else if (strTrimmedArg.EndsWith(");", StringComparison.Ordinal)) {
+						strArgument = strArgument.Replace(");", blnNewLine ? ", stderr);fputs(\"\\n\", stderr);" : ", stderr);");
+					}
 				}
 
 				return (blnStdError ? "fputs(" : "puts(") + strArgument;

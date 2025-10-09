@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 	OutputLogo();
 	int32_t i;
 	for (i = 0; i < (argc - 1); i++) {
-		puts(argv[1 + i]);
+		fputs(argv[1 + i], stderr);fputs("\n", stderr);
 	}
 
 	if ((argc - 1) < 2) {
@@ -161,7 +161,7 @@ int main(int argc, char* argv[])
 			//Check if SOB file is indeed a SOB file
 			int32_t count;
 			fileSob = fopen(argv[1 + idx + 1], "rb");
-			printf("Open %s\n", argv[1 + idx + 1]);
+			fprintf(stderr, "Open %s\n", argv[1 + idx + 1]);
 			fseek(fileSob, 0, SEEK_SET);
 			if (SOBJWasRead(fileSob)) {
 				fgetc(fileSob);
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 					int32_t size = ReadLEInt32(fileSob);
 					int32_t type = fgetc(fileSob);
 
-					printf("%8X: 0x%8X /// Size: 0x%8X / Offset 0x%8X / Type %8X", i,
+					fprintf(stderr, "%8X: 0x%8X /// Size: 0x%8X / Offset 0x%8X / Type %8X", i,
 						start, size, offset, type);
 
 					if (type == 0) {
@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
 						//Get file path
 						char* filepath = GetName(fileSob);
 
-						printf("--Open External File: %s\n", filepath);
+						fprintf(stderr, "--Open External File: %s\n", filepath);
 
 						fileExt = fopen(filepath, "rb");
 						Recopy(fileExt, size, fileOut, offset);
@@ -210,7 +210,7 @@ int main(int argc, char* argv[])
 
 					char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 					linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
-					printf("--%s : %8X\n", linktemp->Name, linktemp->Value);
+					fprintf(stderr, "--%s : %8X\n", linktemp->Name, linktemp->Value);
 					linkCount++; link = (LinkData*)realloc(link, linkCount * sizeof(LinkData)); link[linkCount - 1] = *linktemp;
 				} while (fgetc(fileSob) == 0);
 
@@ -221,19 +221,19 @@ int main(int argc, char* argv[])
 		}
 
 		//Step 3 - Link everything
-		puts("----LINK");
+		fputs("----LINK\n", stderr);
 		for (idx = 0; idx < sobInput; idx++) {
 			fileSob = fopen(argv[1 + idx + 1], "rb");
 			fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
-			printf("Open %s\n", argv[1 + idx + 1]);
+			fprintf(stderr, "Open %s\n", argv[1 + idx + 1]);
 			fseek(fileSob, 0, SEEK_SET);
 			if (SOBJWasRead(fileSob)) {
 				int64_t startIndex = startLink[idx];
 				if (startIndex < (fileSize - 3)) {
-					printf("%8X\n", startIndex);
+					fprintf(stderr, "%8X\n", startIndex);
 					fseek(fileSob, startIndex, SEEK_SET);
 					while (ftell(fileSob) < fileSize - 1) {
-						printf("-%8X\n", ftell(fileSob));
+						fprintf(stderr, "-%8X\n", ftell(fileSob));
 						char* name = GetName(fileSob);
 						int32_t nameId = Search(link, linkCount, name);
 
@@ -241,13 +241,13 @@ int main(int argc, char* argv[])
 						Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 						linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 
-						printf("--%s : %8X\n", name, link[nameId].Value);
+						fprintf(stderr, "--%s : %8X\n", name, link[nameId].Value);
 
 						if (fgetc(fileSob) != 0) {
 							fseek(fileSob, -1, SEEK_CUR);
 							name = GetName(fileSob);
 							nameId = Search(link, linkCount, name);
-							printf("----%s : %8X\n", name, link[nameId].Value);
+							fprintf(stderr, "----%s : %8X\n", name, link[nameId].Value);
 							fgetc(fileSob);
 						}
 
@@ -315,25 +315,25 @@ int main(int argc, char* argv[])
 							int32_t operation = linkcalc[highestpriidx].Operation;
 							int32_t calcValue = linkcalc[highestpriidx].Value;
 							if (operation == 0x02) { //Shift Right
-								printf("%8X >> %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X >> %8X\n", calctemp->Value, calcValue);
 								calctemp->Value >>= calcValue;
 							} else if (operation == 0x0C) { //Add
-								printf("%8X + %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X + %8X\n", calctemp->Value, calcValue);
 								calctemp->Value += calcValue;
 							} else if (operation == 0x0E) { //Sub
-								printf("%8X - %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X - %8X\n", calctemp->Value, calcValue);
 								calctemp->Value -= calcValue;
 							} else if (operation == 0x10) { //Mul
-								printf("%8X * %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X * %8X\n", calctemp->Value, calcValue);
 								calctemp->Value *= calcValue;
 							} else if (operation == 0x12) { //Div
-								printf("%8X / %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X / %8X\n", calctemp->Value, calcValue);
 								calctemp->Value /= calcValue;
 							} else if (operation == 0x16) { //And
-								printf("%8X & %8X\n", calctemp->Value, calcValue);
+								fprintf(stderr, "%8X & %8X\n", calctemp->Value, calcValue);
 								calctemp->Value &= calcValue;
 							} else {
-								printf("ERROR (CALCULATION) [%8X]\n", operation);
+								fprintf(stderr, "ERROR (CALCULATION) [%8X]\n", operation);
 							}
 
 							linkcalc[calcidx] = *calctemp;
@@ -348,7 +348,7 @@ int main(int argc, char* argv[])
 						//And then put the data in
 						int32_t offset = ReadLEInt32(fileSob);
 						fseek(fileOut, offset + 1, SEEK_SET);
-						printf("----%8X : %8X\n", offset, linkcalc[0].Value);
+						fprintf(stderr, "----%8X : %8X\n", offset, linkcalc[0].Value);
 						uint8_t format = fgetc(fileSob);
 						int32_t firstValue = linkcalc[0].Value;
 						if (format == 0x00) { // 8-bit
@@ -365,11 +365,11 @@ int main(int argc, char* argv[])
 							fseek(fileOut, offset, SEEK_SET);
 							fputc(firstValue & 0xff, fileOut); fputc(firstValue >> 8, fileOut);
 						} else {
-							puts("ERROR (OUTPUT)");
+							fputs("ERROR (OUTPUT)\n", stderr);
 						}
 					}
 				} else {
-					puts("NOTHING");
+					fputs("NOTHING\n", stderr);
 				}
 			}
 		}

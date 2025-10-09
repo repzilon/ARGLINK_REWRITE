@@ -149,7 +149,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			OutputLogo();
 			int i;
 			for (i = 0; i < args.Length; i++) {
-				Console.WriteLine(args[i]);
+				Console.Error.WriteLine(args[i]);
 			}
 
 			if (args.Length < 2) {
@@ -175,7 +175,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					//Check if SOB file is indeed a SOB file
 					int count;
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
-					Console.WriteLine("Open {0}", args[idx + 1]);
+					Console.Error.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (SOBJWasRead(fileSob)) {
 						fileSob.ReadByte();
@@ -190,7 +190,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							int  size   = ReadLEInt32(fileSob);
 							int  type   = fileSob.ReadByte();
 
-							Console.WriteLine("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
+							Console.Error.WriteLine("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
 								start, size, offset, type);
 
 							if (type == 0) {
@@ -204,7 +204,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 								//Get file path
 								string filepath = GetName(fileSob);
 
-								Console.WriteLine("--Open External File: {0}", filepath);
+								Console.Error.WriteLine("--Open External File: {0}", filepath);
 
 								fileExt = new BinaryReader(File.OpenRead(filepath));
 								Recopy(fileExt, size, fileOut, offset);
@@ -224,7 +224,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 							linktemp.Name  = new String(nametemp.ToArray());
 							linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
-							Console.WriteLine("--{0} : {1:X}", linktemp.Name, linktemp.Value);
+							Console.Error.WriteLine("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 							link.Add(linktemp);
 						} while (fileSob.ReadByte() == 0);
 
@@ -235,19 +235,19 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				}
 
 				//Step 3 - Link everything
-				Console.WriteLine("----LINK");
+				Console.Error.WriteLine("----LINK");
 				for (idx = 0; idx < sobInput; idx++) {
 					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
 					long fileSize = fileSob.BaseStream.Length;
-					Console.WriteLine("Open {0}", args[idx + 1]);
+					Console.Error.WriteLine("Open {0}", args[idx + 1]);
 					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 					if (SOBJWasRead(fileSob)) {
 						long startIndex = startLink[idx];
 						if (startIndex < (fileSize - 3)) {
-							Console.WriteLine("{0:X}", startIndex);
+							Console.Error.WriteLine("{0:X}", startIndex);
 							fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
 							while (fileSob.BaseStream.Position < fileSize - 1) {
-								Console.WriteLine("-{0:X}", fileSob.BaseStream.Position);
+								Console.Error.WriteLine("-{0:X}", fileSob.BaseStream.Position);
 								string name   = GetName(fileSob);
 								int    nameId = Search(link, name);
 
@@ -255,13 +255,13 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 								Calculation       calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 								linkcalc.Add(calctemp);
 
-								Console.WriteLine("--{0} : {1:X}", name, link[nameId].Value);
+								Console.Error.WriteLine("--{0} : {1:X}", name, link[nameId].Value);
 
 								if (fileSob.ReadByte() != 0) {
 									fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
 									name   = GetName(fileSob);
 									nameId = Search(link, name);
-									Console.WriteLine("----{0} : {1:X}", name, link[nameId].Value);
+									Console.Error.WriteLine("----{0} : {1:X}", name, link[nameId].Value);
 									fileSob.ReadByte();
 								}
 
@@ -329,25 +329,25 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 									int operation = linkcalc[highestpriidx].Operation;
 									int calcValue = linkcalc[highestpriidx].Value;
 									if (operation == 0x02) { //Shift Right
-										Console.WriteLine("{0:X} >> {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} >> {1:X}", calctemp.Value, calcValue);
 										calctemp.Value >>= calcValue;
 									} else if (operation == 0x0C) { //Add
-										Console.WriteLine("{0:X} + {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} + {1:X}", calctemp.Value, calcValue);
 										calctemp.Value += calcValue;
 									} else if (operation == 0x0E) { //Sub
-										Console.WriteLine("{0:X} - {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} - {1:X}", calctemp.Value, calcValue);
 										calctemp.Value -= calcValue;
 									} else if (operation == 0x10) { //Mul
-										Console.WriteLine("{0:X} * {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} * {1:X}", calctemp.Value, calcValue);
 										calctemp.Value *= calcValue;
 									} else if (operation == 0x12) { //Div
-										Console.WriteLine("{0:X} / {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} / {1:X}", calctemp.Value, calcValue);
 										calctemp.Value /= calcValue;
 									} else if (operation == 0x16) { //And
-										Console.WriteLine("{0:X} & {1:X}", calctemp.Value, calcValue);
+										Console.Error.WriteLine("{0:X} & {1:X}", calctemp.Value, calcValue);
 										calctemp.Value &= calcValue;
 									} else {
-										Console.WriteLine("ERROR (CALCULATION) [{0:X}]", operation);
+										Console.Error.WriteLine("ERROR (CALCULATION) [{0:X}]", operation);
 									}
 
 									linkcalc[calcidx] = calctemp;
@@ -357,7 +357,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 								//And then put the data in
 								int offset = fileSob.ReadInt32();
 								fileOut.Seek(offset + 1, SeekOrigin.Begin);
-								Console.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
+								Console.Error.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
 								byte format     = fileSob.ReadByte();
 								int  firstValue = linkcalc[0].Value;
 								if (format == 0x00) { // 8-bit
@@ -374,11 +374,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 									fileOut.Seek(offset, SeekOrigin.Begin);
 									fileOut.Write((ushort)firstValue);
 								} else {
-									Console.WriteLine("ERROR (OUTPUT)");
+									Console.Error.WriteLine("ERROR (OUTPUT)");
 								}
 							}
 						} else {
-							Console.WriteLine("NOTHING");
+							Console.Error.WriteLine("NOTHING");
 						}
 					}
 				}
