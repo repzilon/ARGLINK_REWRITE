@@ -37,6 +37,8 @@ namespace ARGLINK_REWRITE
 		private static byte s_memoryMiB = 2;
 		private static ushort s_printerPort = 0x378;
 		private static byte s_romType = 0x7D;
+
+		private static bool s_verbose; // = false;
 		// ReSharper restore InconsistentNaming
 
 		private static void OutputLogo()
@@ -49,13 +51,16 @@ For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
 
 		private static void OutputUsage()
 		{
-			Console.WriteLine(@"ARGLINK_REWRITE <rom_output> <input_sob>...
+			Console.WriteLine(@"ARGLINK_REWRITE [-V] <rom_output> <input_sob>...
 	to be changed to
 ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...
 All object file names are appended with .SOB if no extension is specified.
 CLI options can be placed in the ALFLAGS environment variable.
 A filename preceded with @ is a file list.
 Note: DOS has a 126-char limit on parameters, so please use the @ option.
+
+** Re-rewrite Added Options are:
+** -V		- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.
 
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
@@ -144,242 +149,306 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			destination.Write(buffer, 0, size);
 		}
 
+		private static void LuigiOut(string text)
+		{
+			if (s_verbose) {
+				Console.Error.WriteLine(text);
+			}
+		}
+
+		private static void LuigiFormat(string format, params object[] ellipsis)
+		{
+			if (s_verbose) {
+				Console.Error.WriteLine(format, ellipsis);
+			}
+		}
+
+		private static bool IsSimpleFlag(char flag, string argument)
+		{
+			if (argument.Length == 2) {
+				char c0 = argument[0];
+				if ((c0 == '-') || (c0 == '/')) {
+					char c1 = argument[1];
+					return (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
+				}
+			}
+			return false;
+		}
+
+		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
+		{
+			long start = fileSob.BaseStream.Position;
+			int offset = ReadLEInt32(fileSob);
+			int size = ReadLEInt32(fileSob);
+			int type = fileSob.ReadByte();
+
+			LuigiFormat("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
+				start, size, offset, type);
+
+			if (type == 0) {
+				//Data
+				Recopy(fileSob, size, fileOut, offset);
+			} else if (type == 1) {
+				//External File
+				fileSob.ReadByte();
+				fileSob.ReadByte();
+
+				//Get file path
+				string filepath = GetName(fileSob);
+				LuigiFormat("--Open External File: {0}", filepath);
+				BinaryReader fileExt = new BinaryReader(File.OpenRead(filepath));
+				Recopy(fileExt, size, fileOut, offset);
+				fileExt.Close();
+			}
+		}
+
+		private static void InputSobStepTwo(BinaryReader fileSob, List<LinkData> link)
+		{
+			do {
+				LinkData linktemp = new LinkData();
+				List<char> nametemp = GetNameChars(fileSob);
+
+				if (nametemp.Count <= 0) {
+					break;
+				}
+
+				linktemp.Name = new String(nametemp.ToArray());
+				linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
+				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
+				link.Add(linktemp);
+			} while (fileSob.ReadByte() == 0);
+		}
+
+		private static void PerformLink(int idx, BinaryWriter fileOut, long[] startLink, int n, string[] args, List<LinkData> link)
+		{
+			BinaryReader fileSob = new BinaryReader(File.OpenRead(args[idx]));
+			long fileSize = fileSob.BaseStream.Length;
+			LuigiFormat("Open {0}", args[idx]);
+			fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
+			if (SOBJWasRead(fileSob)) {
+				long startIndex = startLink[n];
+				if (startIndex < (fileSize - 3)) {
+					LuigiFormat("{0:X}", startIndex);
+					fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
+					while (fileSob.BaseStream.Position < fileSize - 1) {
+						LuigiFormat("-{0:X}", fileSob.BaseStream.Position);
+						string name = GetName(fileSob);
+						int nameId = Search(link, name);
+
+						List<Calculation> linkcalc = new List<Calculation>();
+						Calculation calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
+						linkcalc.Add(calctemp);
+
+						LuigiFormat("--{0} : {1:X}", name, link[nameId].Value);
+
+						if (fileSob.ReadByte() != 0) {
+							fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
+							name = GetName(fileSob);
+							nameId = Search(link, name);
+							LuigiFormat("----{0} : {1:X}", name, link[nameId].Value);
+							fileSob.ReadByte();
+						}
+
+						fileSob.ReadInt32();
+						fileSob.ReadInt32();
+
+						//List all operations
+						byte calccheck1 = fileSob.ReadByte();
+						byte calccheck2 = fileSob.ReadByte();
+						while (calccheck1 != 0 && calccheck2 != 0) {
+							// Note: ReadInt32() introduces a side effect and must be called
+							// under any circumstances
+							calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
+								calccheck2, fileSob.ReadInt32());
+							if (calccheck1 > 0x80) {
+								calctemp.Value = link[nameId].Value;
+							}
+
+							calccheck1 = fileSob.ReadByte();
+							calccheck2 = fileSob.ReadByte();
+							linkcalc.Add(calctemp);
+						}
+
+						//All operations have been found, now do the calculations
+						while (linkcalc.Count > 1) {
+							//Check for highest deep
+							int highestdeep = -1;
+							int highestdeepidx = -1;
+							int i;
+							for (i = 1; i < linkcalc.Count; i++) {
+								//Get the first highest one
+								if (highestdeep < linkcalc[i].Deep) {
+									highestdeep = linkcalc[i].Deep;
+									highestdeepidx = i;
+								}
+							}
+
+							//Check for highest priority
+							int highestpri = -1;
+							int highestpriidx = -1;
+							for (i = highestdeepidx; i < linkcalc.Count; i++) {
+								//Get the first highest one
+								if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
+									break;
+								}
+
+								if (highestpri < linkcalc[i].Priority && linkcalc[i].Deep == highestdeep) {
+									highestpri = linkcalc[i].Priority;
+									highestpriidx = i;
+								}
+							}
+
+							//Check for latest deep
+							int calcidx = -1;
+							for (i = highestpriidx; i >= 0; i--) {
+								//Get the first one that comes
+								if (highestdeep > linkcalc[i].Deep || highestpri > linkcalc[i].Priority) {
+									calcidx = i;
+									break;
+								}
+							}
+
+							//Do the calculation
+							calctemp = linkcalc[calcidx];
+
+							int operation = linkcalc[highestpriidx].Operation;
+							int calcValue = linkcalc[highestpriidx].Value;
+							if (operation == 0x02) { //Shift Right
+								LuigiFormat("{0:X} >> {1:X}", calctemp.Value, calcValue);
+								calctemp.Value >>= calcValue;
+							} else if (operation == 0x0C) { //Add
+								LuigiFormat("{0:X} + {1:X}", calctemp.Value, calcValue);
+								calctemp.Value += calcValue;
+							} else if (operation == 0x0E) { //Sub
+								LuigiFormat("{0:X} - {1:X}", calctemp.Value, calcValue);
+								calctemp.Value -= calcValue;
+							} else if (operation == 0x10) { //Mul
+								LuigiFormat("{0:X} * {1:X}", calctemp.Value, calcValue);
+								calctemp.Value *= calcValue;
+							} else if (operation == 0x12) { //Div
+								LuigiFormat("{0:X} / {1:X}", calctemp.Value, calcValue);
+								calctemp.Value /= calcValue;
+							} else if (operation == 0x16) { //And
+								LuigiFormat("{0:X} & {1:X}", calctemp.Value, calcValue);
+								calctemp.Value &= calcValue;
+							} else {
+								LuigiFormat("ERROR (CALCULATION) [{0:X}]", operation);
+							}
+
+							linkcalc[calcidx] = calctemp;
+							linkcalc.RemoveAt(highestpriidx);
+						}
+
+						//And then put the data in
+						int offset = fileSob.ReadInt32();
+						fileOut.Seek(offset + 1, SeekOrigin.Begin);
+						LuigiFormat("----{0:X} : {1:X}", offset, linkcalc[0].Value);
+						byte format = fileSob.ReadByte();
+						int firstValue = linkcalc[0].Value;
+						if (format == 0x00) { // 8-bit
+							fileOut.Write((byte)firstValue);
+						} else if (format == 0x02) { // 16-bit
+							fileOut.Write((ushort)firstValue);
+						} else if (format == 0x04) { // 24-bit
+							fileOut.Write((ushort)firstValue);
+							fileOut.Write((byte)(firstValue >> 16));
+						} else if (format == 0x0E) { // 8-bit
+							fileOut.Seek(offset, SeekOrigin.Begin);
+							fileOut.Write((byte)firstValue);
+						} else if (format == 0x10) { // 16-bit
+							fileOut.Seek(offset, SeekOrigin.Begin);
+							fileOut.Write((ushort)firstValue);
+						} else {
+							LuigiOut("ERROR (OUTPUT)");
+						}
+					}
+				} else {
+					LuigiOut("NOTHING");
+				}
+			}
+		}
+
 		private static void Main(string[] args)
 		{
 			OutputLogo();
-			int i;
-			for (i = 0; i < args.Length; i++) {
-				Console.Error.WriteLine(args[i]);
+
+			// Parse command line
+			int idx;
+			bool[] fileArgs = new bool[args.Length];
+			int totalFileArgs = args.Length;
+			for (idx = 0; idx < args.Length; idx++) {
+				if (IsSimpleFlag('V', args[idx])) {
+					s_verbose = true;
+					fileArgs[idx] = false;
+					totalFileArgs--;
+				} else {
+					fileArgs[idx] = true;
+				}
 			}
 
-			if (args.Length < 2) {
+			if (s_verbose) {
+				for (idx = 0; idx < args.Length; idx++) {
+					Console.Error.WriteLine(args[idx]);
+				}
+			}
+
+			if (totalFileArgs < 2) {
 				OutputUsage();
 			} else {
-				BinaryWriter fileOut = new BinaryWriter(File.OpenWrite(args[0]));
+				BinaryWriter fileOut = null;
 				BinaryReader fileSob;
-				BinaryReader fileExt;
 
-				//Fill Output file to 1MB
-				fileOut.Seek(0, SeekOrigin.Begin);
-				for (i = 0; i < 0x100000; i++) {
-					fileOut.BaseStream.WriteByte(0xFF);
-				}
-
-				//SOB files, Step 1 & 2 - input all data and list all links
-				List<LinkData> link      = new List<LinkData>();
-				int            sobInput  = args.Length - 1;
-				long[]         startLink = new long[sobInput];
-				int            idx;
-
-				for (idx = 0; idx < sobInput; idx++) {
-					//Check if SOB file is indeed a SOB file
-					int count;
-					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
-					Console.Error.WriteLine("Open {0}", args[idx + 1]);
-					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
-					if (SOBJWasRead(fileSob)) {
-						fileSob.ReadByte();
-						fileSob.ReadByte();
-						count = fileSob.ReadByte();
-						fileSob.ReadByte();
-
-						for (i = 0; i < count; i++) {
-							//Step 1 - Input all data into output
-							long start  = fileSob.BaseStream.Position;
-							int  offset = ReadLEInt32(fileSob);
-							int  size   = ReadLEInt32(fileSob);
-							int  type   = fileSob.ReadByte();
-
-							Console.Error.WriteLine("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
-								start, size, offset, type);
-
-							if (type == 0) {
-								//Data
-								Recopy(fileSob, size, fileOut, offset);
-							} else if (type == 1) {
-								//External File
+				// Steps 1 & 2: Input all data and list all links
+				List<LinkData> link = new List<LinkData>();
+				long[] startLink = new long[totalFileArgs - 1];
+				int firstSob = -1;
+				int n = 0;
+				for (idx = 0; idx < args.Length; idx++) {
+					if (fileArgs[idx]) {
+						int i;
+						if (fileOut == null) {
+							fileOut = new BinaryWriter(File.OpenWrite(args[idx]));
+							// Fill Output file to 1 MiB
+							fileOut.Seek(0, SeekOrigin.Begin);
+							for (i = 0; i < 0x100000; i++) {
+								fileOut.BaseStream.WriteByte(0xFF);
+							}
+							firstSob = idx + 1;
+						} else {
+							//Check if SOB file is indeed a SOB file
+							fileSob = new BinaryReader(File.OpenRead(args[idx]));
+							LuigiFormat("Open {0}", args[idx]);
+							fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
+							if (SOBJWasRead(fileSob)) {
 								fileSob.ReadByte();
 								fileSob.ReadByte();
+								int count = fileSob.ReadByte();
+								fileSob.ReadByte();
 
-								//Get file path
-								string filepath = GetName(fileSob);
+								for (i = 0; i < count; i++) {
+									// Step 1: Input all data into output
+									InputSobStepOne(i, fileOut, fileSob);
+								}
 
-								Console.Error.WriteLine("--Open External File: {0}", filepath);
+								// Step 2: Get all extern names and values
+								InputSobStepTwo(fileSob, link);
 
-								fileExt = new BinaryReader(File.OpenRead(filepath));
-								Recopy(fileExt, size, fileOut, offset);
-
-								fileExt.Close();
+								startLink[n] = fileSob.BaseStream.Position;
+								n++;
+								fileSob.Close();
+								//Repeat
 							}
 						}
-
-						//Step 2 - Get all extern names and values
-						do {
-							LinkData   linktemp = new LinkData();
-							List<char> nametemp = GetNameChars(fileSob);
-
-							if (nametemp.Count <= 0) {
-								break;
-							}
-
-							linktemp.Name  = new String(nametemp.ToArray());
-							linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
-							Console.Error.WriteLine("--{0} : {1:X}", linktemp.Name, linktemp.Value);
-							link.Add(linktemp);
-						} while (fileSob.ReadByte() == 0);
-
-						startLink[idx] = fileSob.BaseStream.Position;
-						fileSob.Close();
-						//Repeat
 					}
 				}
 
-				//Step 3 - Link everything
-				Console.Error.WriteLine("----LINK");
-				for (idx = 0; idx < sobInput; idx++) {
-					fileSob = new BinaryReader(File.OpenRead(args[idx + 1]));
-					long fileSize = fileSob.BaseStream.Length;
-					Console.Error.WriteLine("Open {0}", args[idx + 1]);
-					fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
-					if (SOBJWasRead(fileSob)) {
-						long startIndex = startLink[idx];
-						if (startIndex < (fileSize - 3)) {
-							Console.Error.WriteLine("{0:X}", startIndex);
-							fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
-							while (fileSob.BaseStream.Position < fileSize - 1) {
-								Console.Error.WriteLine("-{0:X}", fileSob.BaseStream.Position);
-								string name   = GetName(fileSob);
-								int    nameId = Search(link, name);
-
-								List<Calculation> linkcalc = new List<Calculation>();
-								Calculation       calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
-								linkcalc.Add(calctemp);
-
-								Console.Error.WriteLine("--{0} : {1:X}", name, link[nameId].Value);
-
-								if (fileSob.ReadByte() != 0) {
-									fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
-									name   = GetName(fileSob);
-									nameId = Search(link, name);
-									Console.Error.WriteLine("----{0} : {1:X}", name, link[nameId].Value);
-									fileSob.ReadByte();
-								}
-
-								fileSob.ReadInt32();
-								fileSob.ReadInt32();
-
-								//List all operations
-								byte calccheck1 = fileSob.ReadByte();
-								byte calccheck2 = fileSob.ReadByte();
-								while (calccheck1 != 0 && calccheck2 != 0) {
-									// Note: ReadInt32() introduces a side effect and must be called
-									// under any circumstances
-									calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
-										calccheck2, fileSob.ReadInt32());
-									if (calccheck1 > 0x80) {
-										calctemp.Value = link[nameId].Value;
-									}
-
-									calccheck1 = fileSob.ReadByte();
-									calccheck2 = fileSob.ReadByte();
-									linkcalc.Add(calctemp);
-								}
-
-								//All operations have been found, now do the calculations
-								while (linkcalc.Count > 1) {
-									//Check for highest deep
-									int highestdeep    = -1;
-									int highestdeepidx = -1;
-									for (i = 1; i < linkcalc.Count; i++) {
-										//Get the first highest one
-										if (highestdeep < linkcalc[i].Deep) {
-											highestdeep    = linkcalc[i].Deep;
-											highestdeepidx = i;
-										}
-									}
-
-									//Check for highest priority
-									int highestpri    = -1;
-									int highestpriidx = -1;
-									for (i = highestdeepidx; i < linkcalc.Count; i++) {
-										//Get the first highest one
-										if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
-											break;
-										}
-
-										if (highestpri < linkcalc[i].Priority && linkcalc[i].Deep == highestdeep) {
-											highestpri    = linkcalc[i].Priority;
-											highestpriidx = i;
-										}
-									}
-
-									//Check for latest deep
-									int calcidx = -1;
-									for (i = highestpriidx; i >= 0; i--) {
-										//Get the first one that comes
-										if (highestdeep > linkcalc[i].Deep || highestpri > linkcalc[i].Priority) {
-											calcidx = i;
-											break;
-										}
-									}
-
-									//Do the calculation
-									calctemp = linkcalc[calcidx];
-
-									int operation = linkcalc[highestpriidx].Operation;
-									int calcValue = linkcalc[highestpriidx].Value;
-									if (operation == 0x02) { //Shift Right
-										Console.Error.WriteLine("{0:X} >> {1:X}", calctemp.Value, calcValue);
-										calctemp.Value >>= calcValue;
-									} else if (operation == 0x0C) { //Add
-										Console.Error.WriteLine("{0:X} + {1:X}", calctemp.Value, calcValue);
-										calctemp.Value += calcValue;
-									} else if (operation == 0x0E) { //Sub
-										Console.Error.WriteLine("{0:X} - {1:X}", calctemp.Value, calcValue);
-										calctemp.Value -= calcValue;
-									} else if (operation == 0x10) { //Mul
-										Console.Error.WriteLine("{0:X} * {1:X}", calctemp.Value, calcValue);
-										calctemp.Value *= calcValue;
-									} else if (operation == 0x12) { //Div
-										Console.Error.WriteLine("{0:X} / {1:X}", calctemp.Value, calcValue);
-										calctemp.Value /= calcValue;
-									} else if (operation == 0x16) { //And
-										Console.Error.WriteLine("{0:X} & {1:X}", calctemp.Value, calcValue);
-										calctemp.Value &= calcValue;
-									} else {
-										Console.Error.WriteLine("ERROR (CALCULATION) [{0:X}]", operation);
-									}
-
-									linkcalc[calcidx] = calctemp;
-									linkcalc.RemoveAt(highestpriidx);
-								}
-
-								//And then put the data in
-								int offset = fileSob.ReadInt32();
-								fileOut.Seek(offset + 1, SeekOrigin.Begin);
-								Console.Error.WriteLine("----{0:X} : {1:X}", offset, linkcalc[0].Value);
-								byte format     = fileSob.ReadByte();
-								int  firstValue = linkcalc[0].Value;
-								if (format == 0x00) { // 8-bit
-									fileOut.Write((byte)firstValue);
-								} else if (format == 0x02) { // 16-bit
-									fileOut.Write((ushort)firstValue);
-								} else if (format == 0x04) { // 24-bit
-									fileOut.Write((ushort)firstValue);
-									fileOut.Write((byte)(firstValue >> 16));
-								} else if (format == 0x0E) { // 8-bit
-									fileOut.Seek(offset, SeekOrigin.Begin);
-									fileOut.Write((byte)firstValue);
-								} else if (format == 0x10) { // 16-bit
-									fileOut.Seek(offset, SeekOrigin.Begin);
-									fileOut.Write((ushort)firstValue);
-								} else {
-									Console.Error.WriteLine("ERROR (OUTPUT)");
-								}
-							}
-						} else {
-							Console.Error.WriteLine("NOTHING");
-						}
+				// Step 3: Link everything
+				LuigiOut("----LINK");
+				n = 0;
+				for (idx = firstSob; idx < args.Length; idx++) {
+					if (fileArgs[idx]) {
+						PerformLink(idx, fileOut, startLink, n, args, link);
+						n++;
 					}
 				}
 			}
