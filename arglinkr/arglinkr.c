@@ -40,7 +40,7 @@ void OutputLogo()
 
 void OutputUsage()
 {
-	puts("ARGLINK_REWRITE [-V] <rom_output> <input_sob>...\n"
+	puts("ARGLINK_REWRITE [-Q] [-V] <rom_output> <input_sob>...\n"
 "to be changed to\n"
 "ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...\n"
 "All object file names are appended with .SOB if no extension is specified.\n"
@@ -48,6 +48,7 @@ void OutputUsage()
 "A filename preceded with @ is a file list.\n"
 "Note: DOS has a 126-char limit on parameters, so please use the @ option.\n"
 "** Re-rewrite Added Options are:\n"
+"** -Q\t\t- Turn off banner on startup.\n"
 "** -V\t\t- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.\n"
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
@@ -362,20 +363,27 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 
 int main(int argc, char* argv[])
 {
-	OutputLogo();
-
 	// Parse command line
 	int32_t idx;
 	bool* fileArgs = (bool*)calloc((argc - 1), sizeof(bool));
 	int32_t totalFileArgs = (argc - 1);
+	bool showLogo = true;
 	for (idx = 0; idx < (argc - 1); idx++) {
 		if (IsSimpleFlag('V', argv[1 + idx])) {
 			s_verbose = true;
 			fileArgs[idx] = false;
 			totalFileArgs--;
+		} else if (IsSimpleFlag('Q', argv[1 + idx])) {
+			showLogo = false;
+			fileArgs[idx] = false;
+			totalFileArgs--;
 		} else {
 			fileArgs[idx] = true;
 		}
+	}
+
+	if (showLogo) {
+		OutputLogo();
 	}
 
 	if (s_verbose) {

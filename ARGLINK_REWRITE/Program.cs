@@ -6,6 +6,8 @@ using System.IO;
 // ReSharper disable SuggestVarOrType_Elsewhere
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 // ReSharper disable UseObjectOrCollectionInitializer
+#pragma warning disable CC0001  // You should use 'var' whenever possible.
+#pragma warning disable CC0105  // You should use 'var' whenever possible.
 #pragma warning disable U2U1104 // Do not use composite formatting to concatenate strings
 #pragma warning disable HAA0601 // Value type to reference type conversion causing boxing allocation
 #pragma warning disable HAA0101 // Array allocation for params parameter
@@ -51,7 +53,7 @@ For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
 
 		private static void OutputUsage()
 		{
-			Console.WriteLine(@"ARGLINK_REWRITE [-V] <rom_output> <input_sob>...
+			Console.WriteLine(@"ARGLINK_REWRITE [-Q] [-V] <rom_output> <input_sob>...
 	to be changed to
 ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...
 All object file names are appended with .SOB if no extension is specified.
@@ -60,6 +62,7 @@ A filename preceded with @ is a file list.
 Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 ** Re-rewrite Added Options are:
+** -Q		- Turn off banner on startup.
 ** -V		- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.
 
 ** Unimplemented Options are:
@@ -177,10 +180,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
 		{
-			long start = fileSob.BaseStream.Position;
-			int offset = ReadLEInt32(fileSob);
-			int size = ReadLEInt32(fileSob);
-			int type = fileSob.ReadByte();
+			long start  = fileSob.BaseStream.Position;
+			int  offset = ReadLEInt32(fileSob);
+			int  size   = ReadLEInt32(fileSob);
+			int  type   = fileSob.ReadByte();
 
 			LuigiFormat("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
 				start, size, offset, type);
@@ -205,14 +208,14 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 		private static void InputSobStepTwo(BinaryReader fileSob, List<LinkData> link)
 		{
 			do {
-				LinkData linktemp = new LinkData();
+				LinkData   linktemp = new LinkData();
 				List<char> nametemp = GetNameChars(fileSob);
 
 				if (nametemp.Count <= 0) {
 					break;
 				}
 
-				linktemp.Name = new String(nametemp.ToArray());
+				linktemp.Name  = new String(nametemp.ToArray());
 				linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
 				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 				link.Add(linktemp);
@@ -221,8 +224,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 		private static void PerformLink(int idx, BinaryWriter fileOut, long[] startLink, int n, string[] args, List<LinkData> link)
 		{
-			BinaryReader fileSob = new BinaryReader(File.OpenRead(args[idx]));
-			long fileSize = fileSob.BaseStream.Length;
+			BinaryReader fileSob  = new BinaryReader(File.OpenRead(args[idx]));
+			long         fileSize = fileSob.BaseStream.Length;
 			LuigiFormat("Open {0}", args[idx]);
 			fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 			if (SOBJWasRead(fileSob)) {
@@ -232,18 +235,18 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
 					while (fileSob.BaseStream.Position < fileSize - 1) {
 						LuigiFormat("-{0:X}", fileSob.BaseStream.Position);
-						string name = GetName(fileSob);
-						int nameId = Search(link, name);
+						string name   = GetName(fileSob);
+						int    nameId = Search(link, name);
 
 						List<Calculation> linkcalc = new List<Calculation>();
-						Calculation calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
+						Calculation       calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 						linkcalc.Add(calctemp);
 
 						LuigiFormat("--{0} : {1:X}", name, link[nameId].Value);
 
 						if (fileSob.ReadByte() != 0) {
 							fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
-							name = GetName(fileSob);
+							name   = GetName(fileSob);
 							nameId = Search(link, name);
 							LuigiFormat("----{0} : {1:X}", name, link[nameId].Value);
 							fileSob.ReadByte();
@@ -272,19 +275,19 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						//All operations have been found, now do the calculations
 						while (linkcalc.Count > 1) {
 							//Check for highest deep
-							int highestdeep = -1;
+							int highestdeep    = -1;
 							int highestdeepidx = -1;
 							int i;
 							for (i = 1; i < linkcalc.Count; i++) {
 								//Get the first highest one
 								if (highestdeep < linkcalc[i].Deep) {
-									highestdeep = linkcalc[i].Deep;
+									highestdeep    = linkcalc[i].Deep;
 									highestdeepidx = i;
 								}
 							}
 
 							//Check for highest priority
-							int highestpri = -1;
+							int highestpri    = -1;
 							int highestpriidx = -1;
 							for (i = highestdeepidx; i < linkcalc.Count; i++) {
 								//Get the first highest one
@@ -293,7 +296,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 								}
 
 								if (highestpri < linkcalc[i].Priority && linkcalc[i].Deep == highestdeep) {
-									highestpri = linkcalc[i].Priority;
+									highestpri    = linkcalc[i].Priority;
 									highestpriidx = i;
 								}
 							}
@@ -343,8 +346,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						int offset = fileSob.ReadInt32();
 						fileOut.Seek(offset + 1, SeekOrigin.Begin);
 						LuigiFormat("----{0:X} : {1:X}", offset, linkcalc[0].Value);
-						byte format = fileSob.ReadByte();
-						int firstValue = linkcalc[0].Value;
+						byte format     = fileSob.ReadByte();
+						int  firstValue = linkcalc[0].Value;
 						if (format == 0x00) { // 8-bit
 							fileOut.Write((byte)firstValue);
 						} else if (format == 0x02) { // 16-bit
@@ -370,20 +373,27 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 		private static void Main(string[] args)
 		{
-			OutputLogo();
-
 			// Parse command line
-			int idx;
-			bool[] fileArgs = new bool[args.Length];
-			int totalFileArgs = args.Length;
+			int    idx;
+			bool[] fileArgs      = new bool[args.Length];
+			int    totalFileArgs = args.Length;
+			bool   showLogo      = true;
 			for (idx = 0; idx < args.Length; idx++) {
 				if (IsSimpleFlag('V', args[idx])) {
-					s_verbose = true;
+					s_verbose     = true;
+					fileArgs[idx] = false;
+					totalFileArgs--;
+				} else if (IsSimpleFlag('Q', args[idx])) {
+					showLogo      = false;
 					fileArgs[idx] = false;
 					totalFileArgs--;
 				} else {
 					fileArgs[idx] = true;
 				}
+			}
+
+			if (showLogo) {
+				OutputLogo();
 			}
 
 			if (s_verbose) {
@@ -399,10 +409,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				BinaryReader fileSob;
 
 				// Steps 1 & 2: Input all data and list all links
-				List<LinkData> link = new List<LinkData>();
-				long[] startLink = new long[totalFileArgs - 1];
-				int firstSob = -1;
-				int n = 0;
+				List<LinkData> link      = new List<LinkData>();
+				long[]         startLink = new long[totalFileArgs - 1];
+				int            firstSob  = -1;
+				int            n         = 0;
 				for (idx = 0; idx < args.Length; idx++) {
 					if (fileArgs[idx]) {
 						int i;
