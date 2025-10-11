@@ -178,7 +178,7 @@ bool IsStringFlag(char flag, char* argument, char** value)
 		}
 	}
 
-	value = NULL;
+	*value = NULL;
 	return false;
 }
 
@@ -192,13 +192,13 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 				uint8_t parsed;
 				if (sscanf((argument + 2), "%hhu", &parsed)) {
 					if (parsed < min) {
-						value = min;
-						printf("ArgLink warning: switch -%s set to %s\n", flag, min);
+						*value = min;
+						printf("ArgLink warning: switch -%c set to %hhu\n", flag, min);
 					} else if (parsed > max) {
-						value = max;
-						printf("ArgLink warning: switch -%s set to %s\n", flag, max);
+						*value = max;
+						printf("ArgLink warning: switch -%c set to %hhu\n", flag, max);
 					} else {
-						value = parsed;
+						*value = parsed;
 					}
 
 					return true;
@@ -207,7 +207,7 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 		}
 	}
 
-	value = 0;
+	*value = 0;
 	return false;
 }
 
@@ -218,7 +218,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	int32_t size = ReadLEInt32(fileSob);
 	int32_t type = fgetc(fileSob);
 
-	LuigiFormat("%8X: 0x%8X /// Size: 0x%8X / Offset 0x%8X / Type %8X", i,
+	LuigiFormat("%X: 0x%X /// Size: 0x%X / Offset 0x%X / Type %X", i,
 		start, size, offset, type);
 
 	if (type == 0) {
@@ -232,7 +232,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		//Get file path
 		char* filepath = GetName(fileSob);
 		LuigiFormat("--Open External File: %s\n", filepath);
-		FILE* fileExt = fopen(filepath, "rb"); uint8_t* fileExtBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileExtBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+		FILE* fileExt = fopen(filepath, "rb"); char* fileExtBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileExtBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 		Recopy(fileExt, size, fileOut, offset);
 		fclose(fileExt); free(fileExtBuffer);
 	}
@@ -250,24 +250,24 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
 
 		char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 		linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
-		LuigiFormat("--%s : %8X\n", linktemp->Name, linktemp->Value);
+		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
 		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData)); link[*linkCount - 1] = *linktemp;
 	} while (fgetc(fileSob) == 0);
 }
 
 void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, char* argv[], LinkData* link, int32_t* linkCount)
 {
-	FILE* fileSob = fopen(argv[1 + idx], "rb"); uint8_t* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+	FILE* fileSob = fopen(argv[1 + idx], "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
 	LuigiFormat("Open %s\n", argv[1 + idx]);
 	fseek(fileSob, 0, SEEK_SET);
 	if (SOBJWasRead(fileSob)) {
 		int64_t startIndex = startLink[n];
 		if (startIndex < (fileSize - 3)) {
-			LuigiFormat("%8X\n", startIndex);
+			LuigiFormat("%X\n", startIndex);
 			fseek(fileSob, startIndex, SEEK_SET);
 			while (ftell(fileSob) < fileSize - 1) {
-				LuigiFormat("-%8X\n", ftell(fileSob));
+				LuigiFormat("-%X\n", ftell(fileSob));
 				char* name = GetName(fileSob);
 				int32_t nameId = Search(link, *linkCount, name);
 
@@ -275,13 +275,13 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 				Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 				linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 
-				LuigiFormat("--%s : %8X\n", name, link[nameId].Value);
+				LuigiFormat("--%s : %X\n", name, link[nameId].Value);
 
 				if (fgetc(fileSob) != 0) {
 					fseek(fileSob, -1, SEEK_CUR);
 					name = GetName(fileSob);
 					nameId = Search(link, *linkCount, name);
-					LuigiFormat("----%s : %8X\n", name, link[nameId].Value);
+					LuigiFormat("----%s : %X\n", name, link[nameId].Value);
 					fgetc(fileSob);
 				}
 
@@ -350,25 +350,25 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 					int32_t operation = linkcalc[highestpriidx].Operation;
 					int32_t calcValue = linkcalc[highestpriidx].Value;
 					if (operation == 0x02) { //Shift Right
-						LuigiFormat("%8X >> %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X >> %X\n", calctemp->Value, calcValue);
 						calctemp->Value >>= calcValue;
 					} else if (operation == 0x0C) { //Add
-						LuigiFormat("%8X + %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X + %X\n", calctemp->Value, calcValue);
 						calctemp->Value += calcValue;
 					} else if (operation == 0x0E) { //Sub
-						LuigiFormat("%8X - %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X - %X\n", calctemp->Value, calcValue);
 						calctemp->Value -= calcValue;
 					} else if (operation == 0x10) { //Mul
-						LuigiFormat("%8X * %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X * %X\n", calctemp->Value, calcValue);
 						calctemp->Value *= calcValue;
 					} else if (operation == 0x12) { //Div
-						LuigiFormat("%8X / %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X / %X\n", calctemp->Value, calcValue);
 						calctemp->Value /= calcValue;
 					} else if (operation == 0x16) { //And
-						LuigiFormat("%8X & %8X\n", calctemp->Value, calcValue);
+						LuigiFormat("%X & %X\n", calctemp->Value, calcValue);
 						calctemp->Value &= calcValue;
 					} else {
-						LuigiFormat("ERROR (CALCULATION) [%8X]\n", operation);
+						LuigiFormat("ERROR (CALCULATION) [%X]\n", operation);
 					}
 
 					linkcalc[calcidx] = *calctemp;
@@ -383,7 +383,7 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 				//And then put the data in
 				int32_t offset = ReadLEInt32(fileSob);
 				fseek(fileOut, offset + 1, SEEK_SET);
-				LuigiFormat("----%8X : %8X\n", offset, linkcalc[0].Value);
+				LuigiFormat("----%X : %X\n", offset, linkcalc[0].Value);
 				uint8_t format = fgetc(fileSob);
 				int32_t firstValue = linkcalc[0].Value;
 				if (format == 0x00) { // 8-bit
@@ -464,7 +464,7 @@ int32_t main(int argc, char* argv[])
 		return 1;
 	} else {
 		FILE* fileSob;
-		FILE* fileOut = fopen(romFile, "wb"); uint8_t* fileOutBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileOutBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+		FILE* fileOut = fopen(romFile, "wb"); char* fileOutBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileOutBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 		// Fill Output file to 1 MiB
 		fseek(fileOut, 0, SEEK_SET);
 		for (idx = 0; idx < 0x100000; idx++) {
@@ -484,7 +484,7 @@ int32_t main(int argc, char* argv[])
 
 				//Check if SOB file is indeed a SOB file
 				// TODO : Append file extension if absent
-				fileSob = fopen(argv[1 + idx], "rb"); uint8_t* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+				fileSob = fopen(argv[1 + idx], "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 				LuigiFormat("Open %s\n", argv[1 + idx]);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {

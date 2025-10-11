@@ -151,16 +151,17 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				: allSource;
 		}
 
+		private static MatchCollection FindStringLiterals(string extract)
+        {
+        	return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
+        }
+
+		#region RemoveAnyKeyword
 		private static string RemoveAnyKeyword(string extract, params string[] keywords)
 		{
 			var mtcStrings = FindStringLiterals(extract);
 			return Regex.Replace(extract, @"(^|\b)(" + String.Join("|", keywords) + ") ",
 				m => RemoveOutsideLiteral(m, mtcStrings));
-		}
-
-		private static MatchCollection FindStringLiterals(string extract)
-		{
-			return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
 		}
 
 		private static string RemoveOutsideLiteral(Match m, MatchCollection literals)
@@ -180,6 +181,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var literalStart = literal.Index;
 			return whatStart >= literalStart && whatStart < literalStart + literal.Length;
 		}
+		#endregion
 
 		private static string RedeclareStructs(string translating)
 		{
@@ -206,14 +208,39 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
+		#region ConvertOutArguments
 		private static string ConvertOutArguments(string translating)
 		{
-			// Prototype
-			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)", "$1* $2");
+			// Function signature
+			// "$1* $2"
+			var lstOutVars = new List<Match>();
+			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)", m => ConvertOutSignature(m, lstOutVars));
 			// Usage
 			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_]+)", "&$1");
+			// Value assignment
+			var me = new MatchEvaluator(ConvertOutAssign);
+			foreach (var m2 in lstOutVars) {
+				translating = Regex.Replace(translating, "(" + m2.Groups[2].Value + @")\s+=\s+([A-Za-z0-9_]+);", me);
+			}
+			// Clean *(variable)
+			translating = Regex.Replace(translating, @"[*][(]([a-z]+)[)]", "*$1");
+
 			return translating;
 		}
+
+		private static string ConvertOutSignature(Match m, List<Match> lstOutVars)
+		{
+			var g = m.Groups;
+			lstOutVars.Add(m);
+			return g[1].Value + "* " + g[2].Value;
+		}
+
+		private static string ConvertOutAssign(Match m3)
+		{
+			var g3 = m3.Groups;
+			return QuickFormat("*({0}) = {1};", g3[1].Value, g3[2].Value);
+		}
+		#endregion
 
 		private static string ConvertVerbatimStrings(string translating)
 		{
@@ -235,25 +262,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
+		#region TranslateConsoleOutputCalls
 		private static string TranslateConsoleOutputCalls(string translating)
 		{
 			translating = Regex.Replace(translating, @"Console(.Error)?.Write(Line)?[(](.*)", ReplaceSingleConsoleCall);
 			translating = Regex.Replace(translating, @"LuigiFormat[(](.*)", ConvertLuigiFormatArgument);
 			return translating;
-		}
-
-		private static string ConvertLuigiFormatArgument(Match m)
-		{
-			var strArgument = m.Groups[1].Value;
-			var blnLiteral = strArgument.StartsWith("\"", StringComparison.Ordinal);
-			var mtcFormats = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
-			if (blnLiteral && (mtcFormats.Count > 0)) {
-				strArgument = Regex.Replace(strArgument, @"[{]\d+(.*?)[}]", ConvertFormatSpecifier);
-				if (strArgument.Trim().EndsWith(");", StringComparison.Ordinal)) {
-					strArgument = strArgument.Replace("\",", "\\n\",");
-				}
-			}
-			return "LuigiFormat(" + strArgument.Trim();
 		}
 
 		private static string ReplaceSingleConsoleCall(Match m)
@@ -279,7 +293,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				var mtcFormats = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
 				if (blnLiteral && (mtcFormats.Count > 0)) {
 					// printf or fprintf
-					strArgument = Regex.Replace(strArgument, @"[{]\d+(.*?)[}]", ConvertFormatSpecifier);
+					var mtcItems = Regex.Matches(strArgument, @",\s+([A-Za-z0-9_]+)");
+					strArgument = Regex.Replace(strArgument, @"[{](\d+)(.*?)[}]",
+						m2 => ConvertFormatSpecifier(m2, mtcItems));
 					if (blnNewLine && strArgument.Trim().EndsWith(");", StringComparison.Ordinal)) {
 						strArgument = strArgument.Replace("\",", "\\n\",");
 					}
@@ -298,16 +314,45 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 					return (blnStdError ? "fputs(" : "puts(") + strArgument;
 				}
-
 			}
 		}
 
-		private static string ConvertFormatSpecifier(Match m2)
+		private static string ConvertLuigiFormatArgument(Match m)
 		{
-			// Very rough but works for now
-			return m2.Groups[1].Value == ":X" ? "%8X" : "%s";
+			var strArgument = m.Groups[1].Value;
+			var blnLiteral  = strArgument.StartsWith("\"", StringComparison.Ordinal);
+			var mtcFormats  = Regex.Matches(strArgument, @"[{]\d+(.*?)[}]");
+			var mtcItems    = Regex.Matches(strArgument, @",\s+([A-Za-z0-9_]+)");
+			if (blnLiteral && (mtcFormats.Count > 0)) {
+				strArgument = Regex.Replace(strArgument, @"[{](\d+)(.*?)[}]",
+					m2 => ConvertFormatSpecifier(m2, mtcItems));
+				if (strArgument.Trim().EndsWith(");", StringComparison.Ordinal)) {
+					strArgument = strArgument.Replace("\",", "\\n\",");
+				}
+			}
+			return "LuigiFormat(" + strArgument.Trim();
 		}
 
+		private static string ConvertFormatSpecifier(Match m2, MatchCollection itemsToFormat)
+		{
+			// Very rough but works for now
+			if (m2.Groups[2].Value == ":X") {
+				return "%X";
+			} else {
+				var position = Byte.Parse(m2.Groups[1].Value);
+				var item =  itemsToFormat[position].Groups[1].Value;
+				if (item == "flag") {
+					return "%c";
+				} else if ((item == "min") || (item == "max")) {
+					return "%hhu";
+				} else {
+					return "%s";
+				}
+			}
+		}
+		#endregion
+
+		#region TranslateFileInputOutput
 		private static string TranslateFileInputOutput(string translating)
 		{
 			translating = Regex.Replace(translating, @"new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
@@ -364,7 +409,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g = m.Groups;
 			return String.Format(CultureInfo.InvariantCulture,
-				"{0} = fopen({1}, \"{2}\"); uint8_t* {0}Buffer = NULL; if ({3} > 0) {{ {0}Buffer = calloc({3}, sizeof(uint8_t)); }}; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {3})",
+				"{0} = fopen({1}, \"{2}\"); char* {0}Buffer = NULL; if ({3} > 0) {{ {0}Buffer = calloc({3}, sizeof(char)); }}; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {3})",
 				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
 		}
 
@@ -372,7 +417,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			return "fseek(" + m.Groups[1].Value.Replace(".BaseStream", "") + ", " + m.Groups[2].Value + ",";
 		}
+		#endregion
 
+		#region TranslateInitObjects
 		private static string TranslateInitObjects(string translating)
 		{
 			translating = Regex.Replace(translating,
@@ -401,6 +448,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				return m.Value; // i.e. no change
 			}
 		}
+		#endregion
 
 		private static string AddressMemberAccess(string translating)
 		{
@@ -445,6 +493,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
+		#region TranslateSpecficCalls
 		private static string TranslateSpecificCalls(string translating)
 		{
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_\[\]]+)\.Name\.Equals[(]([A-Za-z0-9_]+)[)]",
@@ -562,6 +611,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				throw new NotSupportedException();
 			}
 		}
+		#endregion
 
 		private static string QuickFormat(string format, string arg0, string arg1)
 		{
