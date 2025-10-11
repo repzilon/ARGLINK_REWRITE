@@ -46,6 +46,7 @@ void OutputUsage()
 "Note: DOS has a 126-char limit on parameters, so please use the @ option.\n"
 "\n"
 "** Supported Options are:\n"
+"** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
 "\n"
 "** Re-rewrite Added Options are:\n"
@@ -55,10 +56,9 @@ void OutputUsage()
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
-"** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
 "** -C\t\t- Duplicate public warnings on.\n"
 "** -D\t\t- Download to ramboy.\n"
-"** -E<ext>\t- Change default file extension, default = '.SOB'.\n"
+"** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
 "** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
 "** -H<size>\t- String hash size, default = 256.\n"
 "** -I\t\t- Display file information while loading.\n"
@@ -182,6 +182,35 @@ bool IsStringFlag(char flag, char* argument, char** value)
 	return false;
 }
 
+bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* value)
+{
+	if (strlen(argument) > 2) {
+		char c0 = argument[0];
+		if ((c0 == '-') || (c0 == '/')) {
+			char c1 = argument[1];
+			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
+				uint8_t parsed;
+				if (sscanf((argument + 2), "%hhu", &parsed)) {
+					if (parsed < min) {
+						value = min;
+						printf("ArgLink warning: switch -%s set to %s\n", flag, min);
+					} else if (parsed > max) {
+						value = max;
+						printf("ArgLink warning: switch -%s set to %s\n", flag, max);
+					} else {
+						value = parsed;
+					}
+
+					return true;
+				}
+			}
+		}
+	}
+
+	value = 0;
+	return false;
+}
+
 void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 {
 	int64_t start = ftell(fileSob);
@@ -203,9 +232,9 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		//Get file path
 		char* filepath = GetName(fileSob);
 		LuigiFormat("--Open External File: %s\n", filepath);
-		FILE* fileExt = fopen(filepath, "rb");
+		FILE* fileExt = fopen(filepath, "rb"); uint8_t* fileExtBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileExtBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 		Recopy(fileExt, size, fileOut, offset);
-		fclose(fileExt);
+		fclose(fileExt); free(fileExtBuffer);
 	}
 }
 
@@ -228,7 +257,7 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
 
 void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, char* argv[], LinkData* link, int32_t* linkCount)
 {
-	FILE* fileSob = fopen(argv[1 + idx], "rb");
+	FILE* fileSob = fopen(argv[1 + idx], "rb"); uint8_t* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
 	LuigiFormat("Open %s\n", argv[1 + idx]);
 	fseek(fileSob, 0, SEEK_SET);
@@ -386,25 +415,33 @@ int32_t main(int argc, char* argv[])
 	// Do it before parsing command line so command line can override environment
 
 	// Parse command line
+	// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 	int32_t idx;
-	bool* fileArgs = (bool*)calloc((argc - 1), sizeof(bool));
-	int32_t totalFileArgs = (argc - 1);
+	bool* areSobs = (bool*)calloc((argc - 1), sizeof(bool));
+	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
 	char* romFile = NULL;
+	char* passed;
+	uint8_t parsedU8;
 	for (idx = 0; idx < (argc - 1); idx++) {
 		if (IsSimpleFlag('V', argv[1 + idx])) {
 			s_verbose = true;
-			fileArgs[idx] = false;
-			totalFileArgs--;
+			areSobs[idx] = false;
+			totalSobs--;
 		} else if (IsSimpleFlag('Q', argv[1 + idx])) {
 			showLogo = false;
-			fileArgs[idx] = false;
-			totalFileArgs--;
-		} else if (IsStringFlag('O', argv[1 + idx], &romFile)) {
-			fileArgs[idx] = false;
-			totalFileArgs--;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsStringFlag('O', argv[1 + idx], &passed)) {
+			romFile = passed;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsByteFlag('B', argv[1 + idx], 0, 31, &parsedU8)) {
+			s_ioBuffersKiB = parsedU8;
+			areSobs[idx] = false;
+			totalSobs--;
 		} else {
-			fileArgs[idx] = true;
+			areSobs[idx] = true;
 		}
 	}
 
@@ -418,7 +455,7 @@ int32_t main(int argc, char* argv[])
 		}
 	}
 
-	if (totalFileArgs < 1) {
+	if (totalSobs < 1) {
 		OutputUsage();
 		return 1;
 	} else if (((romFile == NULL) || (strlen(romFile) < 1))) {
@@ -427,7 +464,7 @@ int32_t main(int argc, char* argv[])
 		return 1;
 	} else {
 		FILE* fileSob;
-		FILE* fileOut = fopen(romFile, "wb");
+		FILE* fileOut = fopen(romFile, "wb"); uint8_t* fileOutBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileOutBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 		// Fill Output file to 1 MiB
 		fseek(fileOut, 0, SEEK_SET);
 		for (idx = 0; idx < 0x100000; idx++) {
@@ -436,18 +473,18 @@ int32_t main(int argc, char* argv[])
 
 		// Steps 1 & 2: Input all data and list all links
 		LinkData* link = NULL; int32_t linkCount = 0;
-		int64_t* startLink = (int64_t*)calloc(totalFileArgs - 1, sizeof(int64_t));
+		int64_t* startLink = (int64_t*)calloc(totalSobs, sizeof(int64_t));
 		int32_t firstSob = -1;
 		int32_t n = 0;
 		for (idx = 0; idx < (argc - 1); idx++) {
-			if (fileArgs[idx]) {
+			if (areSobs[idx]) {
 				if (firstSob < 0) {
 					firstSob = idx;
 				}
 
 				//Check if SOB file is indeed a SOB file
 				// TODO : Append file extension if absent
-				fileSob = fopen(argv[1 + idx], "rb");
+				fileSob = fopen(argv[1 + idx], "rb"); uint8_t* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(uint8_t)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 				LuigiFormat("Open %s\n", argv[1 + idx]);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {
@@ -466,7 +503,7 @@ int32_t main(int argc, char* argv[])
 
 					startLink[n] = ftell(fileSob);
 					n++;
-					fclose(fileSob);
+					fclose(fileSob); free(fileSobBuffer);
 					//Repeat
 				}
 			}
@@ -476,11 +513,12 @@ int32_t main(int argc, char* argv[])
 		LuigiOut("----LINK");
 		n = 0;
 		for (idx = firstSob; idx < (argc - 1); idx++) {
-			if (fileArgs[idx]) {
+			if (areSobs[idx]) {
 				PerformLink(idx, fileOut, startLink, n, argv, link, &linkCount);
 				n++;
 			}
 		}
+
 		return 0;
 	}
 }

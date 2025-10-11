@@ -263,7 +263,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var strArgument = m.Groups[3].Value;
 			var mtcEllipsis = Regex.Match(strArgument, @"[(]?([A-Za-z0-9_]+).*\bellipsis\b");
 
-			if ((mtcEllipsis != null) && mtcEllipsis.Success) {
+			if (mtcEllipsis.Success) {
 				// v(f)printf
 				var strFormatArg = mtcEllipsis.Groups[1].Value;
 				var stbVariadic  = new StringBuilder(127);
@@ -311,6 +311,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string TranslateFileInputOutput(string translating)
 		{
 			translating = Regex.Replace(translating, @"new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+new FILE\*\(new FileStream[(](.+?),\s+FileMode\.[A-Za-z]+,\s+FileAccess\.([A-Za-z]+),\s+FileShare\.[A-Za-z]+,\s+(.+?)[)][)]", ReplaceBufferedOpen);
 
 			translating = translating.Replace("SeekOrigin.Begin", "SEEK_SET").Replace("SeekOrigin.Current", "SEEK_CUR")
 				.Replace("SeekOrigin.End", "SEEK_END");
@@ -335,24 +336,36 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.(Read|Write)[(](.*?), 0, (.*?)[)]", "f$2($3, sizeof(uint8_t), $4, $1)");
 			translating = translating.Replace("fRead(", "fread(").Replace("fWrite(", "fwrite(");
 
-			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Close\(\)", "fclose($1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Close\(\)", "fclose($1); free($1Buffer)");
 
 			return translating;
 		}
 
-		private static string ReplaceOpenCall(Match m)
+		private static string CFileOpenMode(string method)
 		{
-			var strMethod = m.Groups[1].Value;
-			var strMode   = "";
-			if (strMethod == "Read") {
+			var strMode = "";
+			if (method == "Read") {
 				strMode = "rb";
-			} else if (strMethod == "Write") {
+			} else if (method == "Write") {
 				strMode = "wb";
 			} /*else if (strMode == "Text") {
 				strMode = "r";
 			}// */
+			return strMode;
+		}
 
-			return "fopen(" + m.Groups[2].Value + ", \"" + strMode + "\")";
+		private static string ReplaceOpenCall(Match m)
+		{
+			var g = m.Groups;
+			return QuickFormat("fopen({0}, \"{1}\")", g[2].Value, CFileOpenMode(g[1].Value));
+		}
+
+		private static string ReplaceBufferedOpen(Match m)
+		{
+			var g = m.Groups;
+			return String.Format(CultureInfo.InvariantCulture,
+				"{0} = fopen({1}, \"{2}\"); uint8_t* {0}Buffer = NULL; if ({3} > 0) {{ {0}Buffer = calloc({3}, sizeof(uint8_t)); }}; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {3})",
+				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
 		}
 
 		private static string ReplaceSeekCall(Match m)
@@ -454,8 +467,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"Char\.(To[A-Za-z]+er)", MetaChangeCase);
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "*$1 = ($2 + $3)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "($1 + $2)");
 
 			translating = Regex.Replace(translating, @"String\.IsNullOrEmpty[(]([A-Za-z0-9_]+)[)]", "(($1 == NULL) || (strlen($1) < 1))");
+
+			// Translate <T>.TryParse after .Substring because .Substring can be the argument of TryParse
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.TryParse[(](.*),\s+([A-Za-z0-9_&*]+)[)]", TranslateTryParse);
 
 			return translating;
 		}
@@ -528,6 +545,21 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				return QuickFormat(
 					"char* {1}String = (char*)calloc({1}Count + 1, sizeof(char)); memmove({1}String, {1}, {1}Count);{0} {1}String",
 					leftHand, rightHand);
+			}
+		}
+
+		private static string TranslateTryParse(Match m)
+		{
+			var g = m.Groups;
+			return QuickFormat("sscanf({0}, \"{1}\", {2})", g[2].Value, ManagedTypeToScanfPattern(g[1].Value), g[3].Value);
+		}
+
+		private static string ManagedTypeToScanfPattern(string managedType)
+		{
+			if (managedType == nameof(Byte)) {
+				return "%hhu";
+			} else {
+				throw new NotSupportedException();
 			}
 		}
 

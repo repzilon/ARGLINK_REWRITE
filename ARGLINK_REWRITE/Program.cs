@@ -59,6 +59,7 @@ A filename preceded with @ is a file list.
 Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 ** Supported Options are:
+** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
 ** -O<romfile>	- Output a ROM file.
 
 ** Re-rewrite Added Options are:
@@ -68,10 +69,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
 ** -A2		- Download to ADS SuperChild2 hardware.
-** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
 ** -C		- Duplicate public warnings on.
 ** -D		- Download to ramboy.
-** -E<ext>	- Change default file extension, default = '.SOB'.
+** -E<.ext>	- Change default file extension, default = '.SOB'.
 ** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -H<size>	- String hash size, default = 256.
 ** -I		- Display file information while loading.
@@ -194,6 +194,35 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			return false;
 		}
 
+		private static bool IsByteFlag(char flag, string argument, byte min, byte max, out byte value)
+		{
+			if (argument.Length > 2) {
+				char c0 = argument[0];
+				if ((c0 == '-') || (c0 == '/')) {
+					char c1 = argument[1];
+					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
+						byte parsed;
+						if (Byte.TryParse(argument.Substring(2), out parsed)) {
+							if (parsed < min) {
+								value = min;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, min);
+							} else if (parsed > max) {
+								value = max;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, max);
+							} else {
+								value = parsed;
+							}
+
+							return true;
+						}
+					}
+				}
+			}
+
+			value = 0;
+			return false;
+		}
+
 		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
 		{
 			long start  = fileSob.BaseStream.Position;
@@ -215,7 +244,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				//Get file path
 				string filepath = GetName(fileSob);
 				LuigiFormat("--Open External File: {0}", filepath);
-				BinaryReader fileExt = new BinaryReader(File.OpenRead(filepath));
+				BinaryReader fileExt = new BinaryReader(new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 				Recopy(fileExt, size, fileOut, offset);
 				fileExt.Close();
 			}
@@ -240,7 +269,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 		private static void PerformLink(int idx, BinaryWriter fileOut, long[] startLink, int n, string[] args, List<LinkData> link)
 		{
-			BinaryReader fileSob  = new BinaryReader(File.OpenRead(args[idx]));
+			BinaryReader fileSob  = new BinaryReader(new FileStream(args[idx], FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 			long         fileSize = fileSob.BaseStream.Length;
 			LuigiFormat("Open {0}", args[idx]);
 			fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
@@ -393,27 +422,33 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			// Do it before parsing command line so command line can override environment
 
 			// Parse command line
+			// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 			int    idx;
-			bool[] fileArgs      = new bool[args.Length];
-			int    totalFileArgs = args.Length;
-			bool   showLogo      = true;
-			string romFile       = null;
-			string parsed;
+			bool[] areSobs   = new bool[args.Length];
+			int    totalSobs = args.Length;
+			bool   showLogo  = true;
+			string romFile   = null;
+			string passed;
+			byte   parsedU8;
 			for (idx = 0; idx < args.Length; idx++) {
 				if (IsSimpleFlag('V', args[idx])) {
-					s_verbose     = true;
-					fileArgs[idx] = false;
-					totalFileArgs--;
+					s_verbose    = true;
+					areSobs[idx] = false;
+					totalSobs--;
 				} else if (IsSimpleFlag('Q', args[idx])) {
-					showLogo      = false;
-					fileArgs[idx] = false;
-					totalFileArgs--;
-				} else if (IsStringFlag('O', args[idx], out parsed)) {
-					romFile = parsed;
-					fileArgs[idx] = false;
-					totalFileArgs--;
+					showLogo     = false;
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsStringFlag('O', args[idx], out passed)) {
+					romFile      = passed;
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsByteFlag('B', args[idx], 0, 31, out parsedU8)) {
+					s_ioBuffersKiB = parsedU8;
+					areSobs[idx]   = false;
+					totalSobs--;
 				} else {
-					fileArgs[idx] = true;
+					areSobs[idx] = true;
 				}
 			}
 
@@ -427,7 +462,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				}
 			}
 
-			if (totalFileArgs < 1) {
+			if (totalSobs < 1) {
 				OutputUsage();
 				return 1;
 			} else if (String.IsNullOrEmpty(romFile)) {
@@ -436,7 +471,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				return 1;
 			} else {
 				BinaryReader fileSob;
-				BinaryWriter fileOut = new BinaryWriter(File.OpenWrite(romFile));
+				BinaryWriter fileOut = new BinaryWriter(new FileStream(romFile, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
 				// Fill Output file to 1 MiB
 				fileOut.Seek(0, SeekOrigin.Begin);
 				for (idx = 0; idx < 0x100000; idx++) {
@@ -445,18 +480,18 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				// Steps 1 & 2: Input all data and list all links
 				List<LinkData> link      = new List<LinkData>();
-				long[]         startLink = new long[totalFileArgs];
+				long[]         startLink = new long[totalSobs];
 				int            firstSob  = -1;
 				int            n         = 0;
 				for (idx = 0; idx < args.Length; idx++) {
-					if (fileArgs[idx]) {
+					if (areSobs[idx]) {
 						if (firstSob < 0) {
 							firstSob = idx;
 						}
 
 						//Check if SOB file is indeed a SOB file
 						// TODO : Append file extension if absent
-						fileSob = new BinaryReader(File.OpenRead(args[idx]));
+						fileSob = new BinaryReader(new FileStream(args[idx], FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 						LuigiFormat("Open {0}", args[idx]);
 						fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 						if (SOBJWasRead(fileSob)) {
@@ -485,11 +520,12 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				LuigiOut("----LINK");
 				n = 0;
 				for (idx = firstSob; idx < args.Length; idx++) {
-					if (fileArgs[idx]) {
+					if (areSobs[idx]) {
 						PerformLink(idx, fileOut, startLink, n, args, link);
 						n++;
 					}
 				}
+
 				return 0;
 			}
 		}
