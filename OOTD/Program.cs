@@ -83,7 +83,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+ [A-Za-z_]+\r?\n", "");
 					strCleaned = RedeclareStructs(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
-					strCleaned = ConvertVariadicParams(strCleaned);
+					strCleaned = ConvertParamArrayArguments(strCleaned);
+					strCleaned = ConvertOutArguments(strCleaned);
 					strCleaned = Regex.Replace(strCleaned, @"([A-Za-z0-9*_]+)\[\]\s+([A-Za-z0-9_]+)", "$1 $2[]");
 					strCleaned = ConvertVerbatimStrings(strCleaned);
 					strCleaned = TranslateConsoleOutputCalls(strCleaned);
@@ -95,9 +96,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = TranslateSpecificCalls(strCleaned);
 
 					// Write C code
-					strCleaned = strCleaned.Trim().Replace("\n\n\n", "\n\n");
+					strCleaned = strCleaned.Trim().Replace("\r\n", "\n").Replace('\r', '\n'); // Normalize to LF
+					strCleaned = strCleaned.Replace("\n\n\n", "\n\n");			// Coalesce white space
 					strCleaned = Regex.Replace(strCleaned, "[ ]+", " ");
 					strCleaned = strCleaned.Replace("\t\t ", "\t\t");
+					strCleaned = strCleaned.Replace("\n", Environment.NewLine);	// Normalize to platform line ending
 					destination.WriteLine(strCleaned);
 					return 0;
 				} finally {
@@ -196,6 +199,22 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
+		private static string ConvertParamArrayArguments(string translating)
+		{
+			translating = translating.Replace("params object[] ellipsis", "...");
+			translating = Regex.Replace(translating, @"params object\[\] ([A-Za-z0-9_]+)", "va_list $1");
+			return translating;
+		}
+
+		private static string ConvertOutArguments(string translating)
+		{
+			// Prototype
+			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)", "$1* $2");
+			// Usage
+			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_]+)", "&$1");
+			return translating;
+		}
+
 		private static string ConvertVerbatimStrings(string translating)
 		{
 			var stringLiterals = FindStringLiterals(translating);
@@ -203,8 +222,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			// Process in reverse order to keep positions in stringLiterals valid
 			for (var i = c - 1; i >= 0; i--) {
 				if (stringLiterals[i].Value.StartsWith("@", StringComparison.Ordinal)) {
-					var strarLines = stringLiterals[i].Groups[2].Value
-						.Split("\r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+					var strarLines = stringLiterals[i].Groups[2].Value.Replace("\r\n", "\n").Split('\n');
 					var stbLiteral = new StringBuilder(stringLiterals[i].Length);
 					for (var j = 0; j < strarLines.Length; j++) {
 						stbLiteral.Append('"').Append(strarLines[j].Replace("\t", "\\t")).AppendLine("\\n\"");
@@ -214,13 +232,6 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				}
 			}
 
-			return translating;
-		}
-
-		private static string ConvertVariadicParams(string translating)
-		{
-			translating = translating.Replace("params object[] ellipsis", "...");
-			translating = Regex.Replace(translating, @"params object\[\] ([A-Za-z0-9_]+)", "va_list $1");
 			return translating;
 		}
 
@@ -242,7 +253,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strArgument = strArgument.Replace("\",", "\\n\",");
 				}
 			}
-			return "LuigiFormat(" + strArgument;
+			return "LuigiFormat(" + strArgument.Trim();
 		}
 
 		private static string ReplaceSingleConsoleCall(Match m)
@@ -400,7 +411,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([<=>]+) ([A-Za-z0-9_]+)[.]Count", "$1 $2Count");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Count ([<=>]+)", "$1Count $2");
 
-			translating = translating.Replace("void Main(char* args[])", "int main(int argc, char* argv[])");
+			translating = Regex.Replace(translating, @"\s+Main[(]char[*]\s+args\[\][)]", " main(int argc, char* argv[])");
 			translating = translating.Replace("char* args[]", "char* argv[]");
 			translating = translating.Replace("args.Length", "(argc - 1)").Replace("args[", "argv[1 + ");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Length", "strlen($1)");
@@ -441,6 +452,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				m => TranslateListRemoveAt(m, translating2));
 
 			translating = Regex.Replace(translating, @"Char\.(To[A-Za-z]+er)", MetaChangeCase);
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "*$1 = ($2 + $3)");
+
+			translating = Regex.Replace(translating, @"String\.IsNullOrEmpty[(]([A-Za-z0-9_]+)[)]", "(($1 == NULL) || (strlen($1) < 1))");
 
 			return translating;
 		}

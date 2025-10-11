@@ -47,19 +47,19 @@ namespace ARGLINK_REWRITE
 		{
 			Console.WriteLine(@"ArgLink Re-Rewrite			(c) 2025 Repzilon
 Based on ARGLINK_REWRITE		(c) 2017 LuigiBlood
-For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.
-");
+For imitating ArgLink SFX v1.11x	(c) 1993 Argonaut Software Ltd.");
 		}
 
 		private static void OutputUsage()
 		{
-			Console.WriteLine(@"ARGLINK_REWRITE [-Q] [-V] <rom_output> <input_sob>...
-	to be changed to
-ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...
+			Console.WriteLine(@"ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...
 All object file names are appended with .SOB if no extension is specified.
 CLI options can be placed in the ALFLAGS environment variable.
 A filename preceded with @ is a file list.
 Note: DOS has a 126-char limit on parameters, so please use the @ option.
+
+** Supported Options are:
+** -O<romfile>	- Output a ROM file.
 
 ** Re-rewrite Added Options are:
 ** -Q		- Turn off banner on startup.
@@ -68,25 +68,23 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
 ** -A2		- Download to ADS SuperChild2 hardware.
-** -B		- Set file input/output buffers (0-31), default = 10 KiB.
+** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
 ** -C		- Duplicate public warnings on.
 ** -D		- Download to ramboy.
-** -E <ext>	- Change default file extension, default = '.SOB'.
-** -F[<addr>]	- Set Fabcard port address (in hex), default = 0x290.
-** -H <size>	- String hash size, default = 256.
+** -E<ext>	- Change default file extension, default = '.SOB'.
+** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
+** -H<size>	- String hash size, default = 256.
 ** -I		- Display file information while loading.
-** -L <size>	- Display used ROM layout (size is in KiB).
-** -M <size>	- Memory size, default = 2 (mebibytes).
+** -L<size>	- Display used ROM layout (size is in KiB).
+** -M<size>	- Memory size, default = 2 (mebibytes).
 ** -N		- Download to Nintendo Emulation system.
-** -O <romfile>	- Output a ROM file.
-** -P[<addr>]	- Set Printer port address (in hex), default = 0x378.
+** -P<addr>	- Set Printer port address (in hex), default = 0x378.
 ** -R		- Display ROM block information.
 ** -S		- Display all public symbols.
-** -T[<type>]	- Set ROM type (in hex), default = 0x7D.
-** -W <prefix>	- Set prefix (Work directory) for object files.
+** -T<type>	- Set ROM type (in hex), default = 0x7D.
+** -W<prefix>	- Set prefix (Work directory) for object files.
 ** -Y		- Use secondary ADS backplane CIC.
-** -Z		- Generate a debugger MAP file.
-");
+** -Z		- Generate a debugger MAP file.");
 		}
 
 		private static int Search(List<LinkData> link, string name)
@@ -175,6 +173,24 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					return (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
 				}
 			}
+
+			return false;
+		}
+
+		private static bool IsStringFlag(char flag, string argument, out string value)
+		{
+			if (argument.Length > 2) {
+				char c0 = argument[0];
+				if ((c0 == '-') || (c0 == '/')) {
+					char c1 = argument[1];
+					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
+						value = argument.Substring(2);
+						return true;
+					}
+				}
+			}
+
+			value = null;
 			return false;
 		}
 
@@ -371,13 +387,18 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 		}
 
-		private static void Main(string[] args)
+		private static int Main(string[] args)
 		{
+			// TODO : get, split and parse ALFLAGS environment variable
+			// Do it before parsing command line so command line can override environment
+
 			// Parse command line
 			int    idx;
 			bool[] fileArgs      = new bool[args.Length];
 			int    totalFileArgs = args.Length;
 			bool   showLogo      = true;
+			string romFile       = null;
+			string parsed;
 			for (idx = 0; idx < args.Length; idx++) {
 				if (IsSimpleFlag('V', args[idx])) {
 					s_verbose     = true;
@@ -385,6 +406,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					totalFileArgs--;
 				} else if (IsSimpleFlag('Q', args[idx])) {
 					showLogo      = false;
+					fileArgs[idx] = false;
+					totalFileArgs--;
+				} else if (IsStringFlag('O', args[idx], out parsed)) {
+					romFile = parsed;
 					fileArgs[idx] = false;
 					totalFileArgs--;
 				} else {
@@ -402,52 +427,56 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				}
 			}
 
-			if (totalFileArgs < 2) {
+			if (totalFileArgs < 1) {
 				OutputUsage();
+				return 1;
+			} else if (String.IsNullOrEmpty(romFile)) {
+				// Standard error is reserved for verbose output
+				Console.WriteLine("ArgLink error: no ROM file was specified.");
+				return 1;
 			} else {
-				BinaryWriter fileOut = null;
 				BinaryReader fileSob;
+				BinaryWriter fileOut = new BinaryWriter(File.OpenWrite(romFile));
+				// Fill Output file to 1 MiB
+				fileOut.Seek(0, SeekOrigin.Begin);
+				for (idx = 0; idx < 0x100000; idx++) {
+					fileOut.BaseStream.WriteByte(0xFF);
+				}
 
 				// Steps 1 & 2: Input all data and list all links
 				List<LinkData> link      = new List<LinkData>();
-				long[]         startLink = new long[totalFileArgs - 1];
+				long[]         startLink = new long[totalFileArgs];
 				int            firstSob  = -1;
 				int            n         = 0;
 				for (idx = 0; idx < args.Length; idx++) {
 					if (fileArgs[idx]) {
-						int i;
-						if (fileOut == null) {
-							fileOut = new BinaryWriter(File.OpenWrite(args[idx]));
-							// Fill Output file to 1 MiB
-							fileOut.Seek(0, SeekOrigin.Begin);
-							for (i = 0; i < 0x100000; i++) {
-								fileOut.BaseStream.WriteByte(0xFF);
+						if (firstSob < 0) {
+							firstSob = idx;
+						}
+
+						//Check if SOB file is indeed a SOB file
+						// TODO : Append file extension if absent
+						fileSob = new BinaryReader(File.OpenRead(args[idx]));
+						LuigiFormat("Open {0}", args[idx]);
+						fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
+						if (SOBJWasRead(fileSob)) {
+							fileSob.ReadByte();
+							fileSob.ReadByte();
+							int count = fileSob.ReadByte();
+							fileSob.ReadByte();
+
+							for (int i = 0; i < count; i++) {
+								// Step 1: Input all data into output
+								InputSobStepOne(i, fileOut, fileSob);
 							}
-							firstSob = idx + 1;
-						} else {
-							//Check if SOB file is indeed a SOB file
-							fileSob = new BinaryReader(File.OpenRead(args[idx]));
-							LuigiFormat("Open {0}", args[idx]);
-							fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
-							if (SOBJWasRead(fileSob)) {
-								fileSob.ReadByte();
-								fileSob.ReadByte();
-								int count = fileSob.ReadByte();
-								fileSob.ReadByte();
 
-								for (i = 0; i < count; i++) {
-									// Step 1: Input all data into output
-									InputSobStepOne(i, fileOut, fileSob);
-								}
+							// Step 2: Get all extern names and values
+							InputSobStepTwo(fileSob, link);
 
-								// Step 2: Get all extern names and values
-								InputSobStepTwo(fileSob, link);
-
-								startLink[n] = fileSob.BaseStream.Position;
-								n++;
-								fileSob.Close();
-								//Repeat
-							}
+							startLink[n] = fileSob.BaseStream.Position;
+							n++;
+							fileSob.Close();
+							//Repeat
 						}
 					}
 				}
@@ -461,6 +490,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						n++;
 					}
 				}
+				return 0;
 			}
 		}
 	}

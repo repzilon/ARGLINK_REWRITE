@@ -18,7 +18,6 @@ typedef struct Calculation {
 	int32_t Value;
 } Calculation;
 
-
 // Default values as stated in usage text
 uint8_t s_ioBuffersKiB = 10;
 char* s_defaultExtension = ".SOB";
@@ -40,35 +39,37 @@ void OutputLogo()
 
 void OutputUsage()
 {
-	puts("ARGLINK_REWRITE [-Q] [-V] <rom_output> <input_sob>...\n"
-"to be changed to\n"
-"ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...\n"
+	puts("ARGLINK [opts] <obj1> [opts] obj2 [opts] obj3 [opts] obj4 ...\n"
 "All object file names are appended with .SOB if no extension is specified.\n"
 "CLI options can be placed in the ALFLAGS environment variable.\n"
 "A filename preceded with @ is a file list.\n"
 "Note: DOS has a 126-char limit on parameters, so please use the @ option.\n"
+"\n"
+"** Supported Options are:\n"
+"** -O<romfile>\t- Output a ROM file.\n"
+"\n"
 "** Re-rewrite Added Options are:\n"
 "** -Q\t\t- Turn off banner on startup.\n"
 "** -V\t\t- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.\n"
+"\n"
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
-"** -B\t\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
+"** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
 "** -C\t\t- Duplicate public warnings on.\n"
 "** -D\t\t- Download to ramboy.\n"
-"** -E <ext>\t- Change default file extension, default = '.SOB'.\n"
-"** -F[<addr>]\t- Set Fabcard port address (in hex), default = 0x290.\n"
-"** -H <size>\t- String hash size, default = 256.\n"
+"** -E<ext>\t- Change default file extension, default = '.SOB'.\n"
+"** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
+"** -H<size>\t- String hash size, default = 256.\n"
 "** -I\t\t- Display file information while loading.\n"
-"** -L <size>\t- Display used ROM layout (size is in KiB).\n"
-"** -M <size>\t- Memory size, default = 2 (mebibytes).\n"
+"** -L<size>\t- Display used ROM layout (size is in KiB).\n"
+"** -M<size>\t- Memory size, default = 2 (mebibytes).\n"
 "** -N\t\t- Download to Nintendo Emulation system.\n"
-"** -O <romfile>\t- Output a ROM file.\n"
-"** -P[<addr>]\t- Set Printer port address (in hex), default = 0x378.\n"
+"** -P<addr>\t- Set Printer port address (in hex), default = 0x378.\n"
 "** -R\t\t- Display ROM block information.\n"
 "** -S\t\t- Display all public symbols.\n"
-"** -T[<type>]\t- Set ROM type (in hex), default = 0x7D.\n"
-"** -W <prefix>\t- Set prefix (Work directory) for object files.\n"
+"** -T<type>\t- Set ROM type (in hex), default = 0x7D.\n"
+"** -W<prefix>\t- Set prefix (Work directory) for object files.\n"
 "** -Y\t\t- Use secondary ADS backplane CIC.\n"
 "** -Z\t\t- Generate a debugger MAP file.\n"
 );
@@ -160,6 +161,24 @@ bool IsSimpleFlag(char flag, char* argument)
 			return (c1 == toupper(flag)) || (c1 == tolower(flag));
 		}
 	}
+
+	return false;
+}
+
+bool IsStringFlag(char flag, char* argument, char** value)
+{
+	if (strlen(argument) > 2) {
+		char c0 = argument[0];
+		if ((c0 == '-') || (c0 == '/')) {
+			char c1 = argument[1];
+			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
+				*value = (argument + 2);
+				return true;
+			}
+		}
+	}
+
+	value = NULL;
 	return false;
 }
 
@@ -361,13 +380,17 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 	}
 }
 
-int main(int argc, char* argv[])
+int32_t main(int argc, char* argv[])
 {
+	// TODO : get, split and parse ALFLAGS environment variable
+	// Do it before parsing command line so command line can override environment
+
 	// Parse command line
 	int32_t idx;
 	bool* fileArgs = (bool*)calloc((argc - 1), sizeof(bool));
 	int32_t totalFileArgs = (argc - 1);
 	bool showLogo = true;
+	char* romFile = NULL;
 	for (idx = 0; idx < (argc - 1); idx++) {
 		if (IsSimpleFlag('V', argv[1 + idx])) {
 			s_verbose = true;
@@ -375,6 +398,9 @@ int main(int argc, char* argv[])
 			totalFileArgs--;
 		} else if (IsSimpleFlag('Q', argv[1 + idx])) {
 			showLogo = false;
+			fileArgs[idx] = false;
+			totalFileArgs--;
+		} else if (IsStringFlag('O', argv[1 + idx], &romFile)) {
 			fileArgs[idx] = false;
 			totalFileArgs--;
 		} else {
@@ -392,11 +418,21 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (totalFileArgs < 2) {
+	if (totalFileArgs < 1) {
 		OutputUsage();
+		return 1;
+	} else if (((romFile == NULL) || (strlen(romFile) < 1))) {
+		// Standard error is reserved for verbose output
+		puts("ArgLink error: no ROM file was specified.");
+		return 1;
 	} else {
-		FILE* fileOut = NULL;
 		FILE* fileSob;
+		FILE* fileOut = fopen(romFile, "wb");
+		// Fill Output file to 1 MiB
+		fseek(fileOut, 0, SEEK_SET);
+		for (idx = 0; idx < 0x100000; idx++) {
+			fputc(0xFF, fileOut);
+		}
 
 		// Steps 1 & 2: Input all data and list all links
 		LinkData* link = NULL; int32_t linkCount = 0;
@@ -405,39 +441,33 @@ int main(int argc, char* argv[])
 		int32_t n = 0;
 		for (idx = 0; idx < (argc - 1); idx++) {
 			if (fileArgs[idx]) {
-				int32_t i;
-				if (fileOut == NULL) {
-					fileOut = fopen(argv[1 + idx], "wb");
-					// Fill Output file to 1 MiB
-					fseek(fileOut, 0, SEEK_SET);
-					for (i = 0; i < 0x100000; i++) {
-						fputc(0xFF, fileOut);
+				if (firstSob < 0) {
+					firstSob = idx;
+				}
+
+				//Check if SOB file is indeed a SOB file
+				// TODO : Append file extension if absent
+				fileSob = fopen(argv[1 + idx], "rb");
+				LuigiFormat("Open %s\n", argv[1 + idx]);
+				fseek(fileSob, 0, SEEK_SET);
+				if (SOBJWasRead(fileSob)) {
+					fgetc(fileSob);
+					fgetc(fileSob);
+					int32_t count = fgetc(fileSob);
+					fgetc(fileSob);
+
+					for (int32_t i = 0; i < count; i++) {
+						// Step 1: Input all data into output
+						InputSobStepOne(i, fileOut, fileSob);
 					}
-					firstSob = idx + 1;
-				} else {
-					//Check if SOB file is indeed a SOB file
-					fileSob = fopen(argv[1 + idx], "rb");
-					LuigiFormat("Open %s\n", argv[1 + idx]);
-					fseek(fileSob, 0, SEEK_SET);
-					if (SOBJWasRead(fileSob)) {
-						fgetc(fileSob);
-						fgetc(fileSob);
-						int32_t count = fgetc(fileSob);
-						fgetc(fileSob);
 
-						for (i = 0; i < count; i++) {
-							// Step 1: Input all data into output
-							InputSobStepOne(i, fileOut, fileSob);
-						}
+					// Step 2: Get all extern names and values
+					InputSobStepTwo(fileSob, link, &linkCount);
 
-						// Step 2: Get all extern names and values
-						InputSobStepTwo(fileSob, link, &linkCount);
-
-						startLink[n] = ftell(fileSob);
-						n++;
-						fclose(fileSob);
-						//Repeat
-					}
+					startLink[n] = ftell(fileSob);
+					n++;
+					fclose(fileSob);
+					//Repeat
 				}
 			}
 		}
@@ -451,5 +481,6 @@ int main(int argc, char* argv[])
 				n++;
 			}
 		}
+		return 0;
 	}
 }
