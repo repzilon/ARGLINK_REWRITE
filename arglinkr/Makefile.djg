@@ -1,0 +1,28 @@
+## Makefile (GNU dialect) to build ArgLink Re-Rewrite under DJGPP
+
+CC := gcc
+CXX := gpp
+# Note : you cannot use -pipe with DOS
+CFLAGS_OPTIM := -Os -fomit-frame-pointer -march=pentium3 -s
+CFLAGS_WARN := -Wall -Wformat -Wformat=2 -Wconversion -Wimplicit-fallthrough -Werror=format-security \
+-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 \
+-fstack-protector-strong \
+-fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing \
+-Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion \
+-fstack-clash-protection -Wtrampolines
+# -fvisibility=hidden has no effect on static library systems like DOS
+CXXFLAGS_OPTIM := $(CFLAGS_OPTIM) 
+CXXFLAGS_WARN := $(CFLAGS_WARN) -D_GLIBCXX_ASSERTIONS
+
+all: arglinkr.EXE
+
+arglinkr.EXE: arglinkr.c
+	$(CC) $(CFLAGS_OPTIM) $(CFLAGS_WARN) arglinkr.c -o $@
+
+clean:
+	del arglinkr.EXE
+
+help:
+	@echo "Available targets: all clean"
+
+.PHONY: all clean install help
