@@ -80,7 +80,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
 					strCleaned = RemoveAnyKeyword(strCleaned, "internal", "private", "public", "protected");
 					strCleaned = RemoveAnyKeyword(strCleaned, "static");
-					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+ [A-Za-z_]+\r?\n", "");
+					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+( [a-z]+)? [A-Za-z_]+\r?\n", "");
 					strCleaned = RedeclareStructs(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
 					strCleaned = ConvertParamArrayArguments(strCleaned);
@@ -321,7 +321,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g           = m.Groups;
 			var strArgument = ReformatArgument(g[2].Value, false);
-			return QuickFormat("asprintf(&{0}, {1}", g[1].Value, strArgument.Trim());
+			// Note: strArgument ends with );
+			return QuickFormat("size_t nbytes = snprintf(NULL, 0, {1} {0} = calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
+				g[1].Value, strArgument.Trim());
 		}
 
 		private static string ReformatArgument(string extracted, bool addNewLine)
@@ -422,7 +424,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g = m.Groups;
 			return String.Format(CultureInfo.InvariantCulture,
-				"{0} = fopen({1}, \"{2}\"); char* {0}Buffer = NULL; if ({3} > 0) {{ {0}Buffer = calloc({3}, sizeof(char)); }}; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {3})",
+				"{0} = fopen({1}, \"{2}\"); uint16_t {0}Zone = {3}; char* {0}Buffer = ({0}Zone > 0) ? calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
 				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
 		}
 

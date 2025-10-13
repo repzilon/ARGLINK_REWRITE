@@ -220,12 +220,9 @@ char* AppendExtensionIfAbsent(char* argSfxObjectFile)
 {
 	// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
 	char* ext = ExtensionOf(argSfxObjectFile);
-	// ReSharper disable once ConvertIfStatementToReturnStatement
-	if (((ext == NULL) || (strlen(ext) < 1))) {
-		// ReSharper disable once JoinDeclarationAndInitializer
-		char* corrected;
-		// ReSharper disable once UseStringInterpolation
-		asprintf(&corrected, "%s%s", argSfxObjectFile, s_defaultExtension);
+		if (((ext == NULL) || (strlen(ext) < 1))) {
+				char* corrected;
+				size_t nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); corrected = calloc(nbytes, sizeof(char)); snprintf(corrected, nbytes, "%s%s", argSfxObjectFile, s_defaultExtension);
 		return corrected;
 	} else {
 		return argSfxObjectFile;
@@ -253,7 +250,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		//Get file path
 		char* filepath = GetName(fileSob);
 		LuigiFormat("--Open External File: %s\n", filepath);
-		FILE* fileExt = fopen(filepath, "rb"); char* fileExtBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileExtBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+		FILE* fileExt = fopen(filepath, "rb"); uint16_t fileExtZone = s_ioBuffersKiB * 1024; char* fileExtBuffer = (fileExtZone > 0) ? calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
 		Recopy(fileExt, size, fileOut, offset);
 		fclose(fileExt); free(fileExtBuffer);
 	}
@@ -278,7 +275,7 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
 
 void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, int32_t* linkCount)
 {
-	FILE* fileSob = fopen(sobjFile, "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+	FILE* fileSob = fopen(sobjFile, "rb"); uint16_t fileSobZone = s_ioBuffersKiB * 1024; char* fileSobBuffer = (fileSobZone > 0) ? calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
 	LuigiFormat("Open %s\n", sobjFile);
 	fseek(fileSob, 0, SEEK_SET);
@@ -495,7 +492,7 @@ int32_t main(int argc, char* argv[])
 		return 1;
 	} else {
 		FILE* fileSob;
-		FILE* fileOut = fopen(romFile, "wb"); char* fileOutBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileOutBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+		FILE* fileOut = fopen(romFile, "wb"); uint16_t fileOutZone = s_ioBuffersKiB * 1024; char* fileOutBuffer = (fileOutZone > 0) ? calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
 		// Fill Output file to 1 MiB
 		fseek(fileOut, 0, SEEK_SET);
 		for (idx = 0; idx < 0x100000; idx++) {
@@ -516,7 +513,7 @@ int32_t main(int argc, char* argv[])
 
 				//Check if SOB file is indeed a SOB file
 				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
-				fileSob = fopen(sobjFile, "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+				fileSob = fopen(sobjFile, "rb"); uint16_t fileSobZone = s_ioBuffersKiB * 1024; char* fileSobBuffer = (fileSobZone > 0) ? calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {
