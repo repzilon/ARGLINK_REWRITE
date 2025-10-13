@@ -494,12 +494,14 @@ int32_t main(int argc, char* argv[])
 		FILE* fileSob;
 		FILE* fileOut = fopen(romFile, "wb"); uint16_t fileOutZone = s_ioBuffersKiB * 1024; char* fileOutBuffer = (fileOutZone > 0) ? calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
 		// Fill Output file to 1 MiB
+		puts("Constructing ROM Image.");
 		fseek(fileOut, 0, SEEK_SET);
 		for (idx = 0; idx < 0x100000; idx++) {
 			fputc(0xFF, fileOut);
 		}
 
 		// Steps 1 & 2: Input all data and list all links
+		puts("Processing Externals.");
 		LinkData* link = NULL; int32_t linkCount = 0;
 		int64_t* startLink = (int64_t*)calloc(totalSobs, sizeof(int64_t));
 		int32_t firstSob = -1;
@@ -539,6 +541,7 @@ int32_t main(int argc, char* argv[])
 		}
 
 		// Step 3: Link everything
+		puts("Writing Image.");
 		LuigiOut("----LINK");
 		n = 0;
 		for (idx = firstSob; idx < (argc - 1); idx++) {
@@ -549,7 +552,12 @@ int32_t main(int argc, char* argv[])
 			}
 		}
 
+		fseek(fileOut, 0, SEEK_END); int64_t finalSize = ftell(fileOut);
+		finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
+		printf("| Publics: %d\tFiles: %d\tROM Size: %dKiB |\n", linkCount, totalSobs, finalSize);
+
 		fclose(fileOut); free(fileOutBuffer);
+
 		return 0;
 	}
 }

@@ -504,12 +504,14 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				BinaryReader fileSob;
 				BinaryWriter fileOut = new BinaryWriter(new FileStream(romFile, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
 				// Fill Output file to 1 MiB
+				Console.WriteLine("Constructing ROM Image.");
 				fileOut.Seek(0, SeekOrigin.Begin);
 				for (idx = 0; idx < 0x100000; idx++) {
 					fileOut.BaseStream.WriteByte(0xFF);
 				}
 
 				// Steps 1 & 2: Input all data and list all links
+				Console.WriteLine("Processing Externals.");
 				List<LinkData> link      = new List<LinkData>();
 				long[]         startLink = new long[totalSobs];
 				int            firstSob  = -1;
@@ -549,6 +551,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				}
 
 				// Step 3: Link everything
+				Console.WriteLine("Writing Image.");
 				LuigiOut("----LINK");
 				n = 0;
 				for (idx = firstSob; idx < args.Length; idx++) {
@@ -559,7 +562,12 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					}
 				}
 
+				long finalSize = fileOut.BaseStream.Length;
+				finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
+				Console.WriteLine("| Publics: {0}\tFiles: {1}\tROM Size: {2}KiB |", link.Count, totalSobs, finalSize);
+
 				fileOut.Close();
+
 				return 0;
 			}
 		}

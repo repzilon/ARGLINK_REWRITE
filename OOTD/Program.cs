@@ -339,7 +339,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReformatArgumentCore(string extracted, bool addNewLine)
 		{
-			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_]+)");
+			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_.]+)");
 			var strReformatted = Regex.Replace(extracted, @"[{](\d+)(.*?)[}]",
 				m2 => ConvertFormatSpecifier(m2, mtcItems));
 			if (addNewLine && strReformatted.Trim().EndsWith(");", StringComparison.Ordinal)) {
@@ -360,6 +360,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					return "%c";
 				} else if ((item == "min") || (item == "max")) {
 					return "%hhu";
+				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
+				(item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0) ||
+				(item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0)) {
+					return "%d";
 				} else {
 					return "%s";
 				}
@@ -486,6 +490,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			// translating = Regex.Replace(translating, @"", "");
 			translating = Regex.Replace(translating, @"([<=>]+) ([A-Za-z0-9_]+)[.]Count", "$1 $2Count");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Count ([<=>]+)", "$1Count $2");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Count", "$1Count");
 
 			translating = Regex.Replace(translating, @"\s+Main[(]char[*]\s+args\[\][)]", " main(int argc, char* argv[])");
 			translating = translating.Replace("char* args[]", "char* argv[]");
