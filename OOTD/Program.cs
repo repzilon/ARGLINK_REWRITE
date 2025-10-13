@@ -322,7 +322,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var g           = m.Groups;
 			var strArgument = ReformatArgument(g[2].Value, false);
 			// Note: strArgument ends with );
-			return QuickFormat("size_t nbytes = snprintf(NULL, 0, {1} {0} = calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
+			return QuickFormat("size_t nbytes = snprintf(NULL, 0, {1} {0} = (char*)calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
 				g[1].Value, strArgument.Trim());
 		}
 
@@ -428,7 +428,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g = m.Groups;
 			return String.Format(CultureInfo.InvariantCulture,
-				"{0} = fopen({1}, \"{2}\"); uint16_t {0}Zone = {3}; char* {0}Buffer = ({0}Zone > 0) ? calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
+				"{0} = fopen({1}, \"{2}\"); uint16_t {0}Zone = {3}; char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
 				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
 		}
 

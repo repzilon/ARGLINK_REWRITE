@@ -1,5 +1,5 @@
 [Project]
-FileName=arglinkr.dev
+FileName=ARGLINKR.DEV
 Name=arglinkr
 UnitCount=1
 Type=1
@@ -10,7 +10,7 @@ Libs=
 PrivateResource=
 ResourceIncludes=
 MakeIncludes=
-Compiler=-fomit-frame-pointer_@@_
+Compiler=-Wall -Wformat_@@_-Wformat=2_@@_-Wconversion_@@_-Wimplicit-fallthrough_@@_-U_FORTIFY_SOURCE_@@_-D_FORTIFY_SOURCE=3_@@_-fno-delete-null-pointer-checks_@@_-fno-strict-aliasing_@@_
 CppCompiler=
 Linker=
 IsCpp=0
@@ -27,7 +27,7 @@ CustomMakefile=
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-CompilerSettings=00000000000100000000ha
+CompilerSettings=00000000000100000001ha
 
 [Unit1]
 FileName=ARGLINKR.C
