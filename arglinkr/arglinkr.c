@@ -45,8 +45,9 @@ void OutputUsage()
 "A filename preceded with @ is a file list.\n"
 "Note: DOS has a 126-char limit on parameters, so please use the @ option.\n"
 "\n"
-"** Supported Options are:\n"
+"** Available Options are:\n"
 "** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
+"** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
 "\n"
 "** Re-rewrite Added Options are:\n"
@@ -58,7 +59,6 @@ void OutputUsage()
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
 "** -C\t\t- Duplicate public warnings on.\n"
 "** -D\t\t- Download to ramboy.\n"
-"** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
 "** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
 "** -H<size>\t- String hash size, default = 256.\n"
 "** -I\t\t- Display file information while loading.\n"
@@ -211,6 +211,27 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 	return false;
 }
 
+char* ExtensionOf(char* path)
+{
+	char* dot = strrchr(path, '.'); return (!dot || dot == path) ? NULL : dot;
+}
+
+char* AppendExtensionIfAbsent(char* argSfxObjectFile)
+{
+	// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
+	char* ext = ExtensionOf(argSfxObjectFile);
+	// ReSharper disable once ConvertIfStatementToReturnStatement
+	if (((ext == NULL) || (strlen(ext) < 1))) {
+		// ReSharper disable once JoinDeclarationAndInitializer
+		char* corrected;
+		// ReSharper disable once UseStringInterpolation
+		asprintf(&corrected, "%s%s", argSfxObjectFile, s_defaultExtension);
+		return corrected;
+	} else {
+		return argSfxObjectFile;
+	}
+}
+
 void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 {
 	int64_t start = ftell(fileSob);
@@ -255,11 +276,11 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
 	} while (fgetc(fileSob) == 0);
 }
 
-void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, char* argv[], LinkData* link, int32_t* linkCount)
+void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, int32_t* linkCount)
 {
-	FILE* fileSob = fopen(argv[1 + idx], "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+	FILE* fileSob = fopen(sobjFile, "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
-	LuigiFormat("Open %s\n", argv[1 + idx]);
+	LuigiFormat("Open %s\n", sobjFile);
 	fseek(fileSob, 0, SEEK_SET);
 	if (SOBJWasRead(fileSob)) {
 		int64_t startIndex = startLink[n];
@@ -407,6 +428,7 @@ void PerformLink(int32_t idx, FILE* fileOut, int64_t startLink[], int32_t n, cha
 			LuigiOut("NOTHING");
 		}
 	}
+	fclose(fileSob); free(fileSobBuffer);
 }
 
 int32_t main(int argc, char* argv[])
@@ -424,6 +446,7 @@ int32_t main(int argc, char* argv[])
 	char* passed;
 	uint8_t parsedU8;
 	for (idx = 0; idx < (argc - 1); idx++) {
+		passed = NULL;
 		if (IsSimpleFlag('V', argv[1 + idx])) {
 			s_verbose = true;
 			areSobs[idx] = false;
@@ -438,6 +461,14 @@ int32_t main(int argc, char* argv[])
 			totalSobs--;
 		} else if (IsByteFlag('B', argv[1 + idx], 0, 31, &parsedU8)) {
 			s_ioBuffersKiB = parsedU8;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsStringFlag('E', argv[1 + idx], &passed)) {
+			if ((passed != NULL) && (strlen(passed) >= 2) && (passed[0] == '.')) {
+				s_defaultExtension = passed;
+			} else {
+				puts("ArgLink warning: default extension override must start with a dot.");
+			}
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {
@@ -476,6 +507,7 @@ int32_t main(int argc, char* argv[])
 		int64_t* startLink = (int64_t*)calloc(totalSobs, sizeof(int64_t));
 		int32_t firstSob = -1;
 		int32_t n = 0;
+		char* sobjFile;
 		for (idx = 0; idx < (argc - 1); idx++) {
 			if (areSobs[idx]) {
 				if (firstSob < 0) {
@@ -483,9 +515,9 @@ int32_t main(int argc, char* argv[])
 				}
 
 				//Check if SOB file is indeed a SOB file
-				// TODO : Append file extension if absent
-				fileSob = fopen(argv[1 + idx], "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
-				LuigiFormat("Open %s\n", argv[1 + idx]);
+				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
+				fileSob = fopen(sobjFile, "rb"); char* fileSobBuffer = NULL; if (s_ioBuffersKiB * 1024 > 0) { fileSobBuffer = calloc(s_ioBuffersKiB * 1024, sizeof(char)); }; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, s_ioBuffersKiB * 1024);
+				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {
 					fgetc(fileSob);
@@ -514,11 +546,13 @@ int32_t main(int argc, char* argv[])
 		n = 0;
 		for (idx = firstSob; idx < (argc - 1); idx++) {
 			if (areSobs[idx]) {
-				PerformLink(idx, fileOut, startLink, n, argv, link, &linkCount);
+				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
+				PerformLink(sobjFile, fileOut, startLink, n, link, &linkCount);
 				n++;
 			}
 		}
 
+		fclose(fileOut); free(fileOutBuffer);
 		return 0;
 	}
 }

@@ -58,8 +58,9 @@ CLI options can be placed in the ALFLAGS environment variable.
 A filename preceded with @ is a file list.
 Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
-** Supported Options are:
+** Available Options are:
 ** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
+** -E<.ext>	- Change default file extension, default = '.SOB'.
 ** -O<romfile>	- Output a ROM file.
 
 ** Re-rewrite Added Options are:
@@ -71,7 +72,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -A2		- Download to ADS SuperChild2 hardware.
 ** -C		- Duplicate public warnings on.
 ** -D		- Download to ramboy.
-** -E<.ext>	- Change default file extension, default = '.SOB'.
 ** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -H<size>	- String hash size, default = 256.
 ** -I		- Display file information while loading.
@@ -223,6 +223,27 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			return false;
 		}
 
+		private static string ExtensionOf(string path)
+		{
+			return Path.GetExtension(path);
+		}
+
+		private static string AppendExtensionIfAbsent(string argSfxObjectFile)
+		{
+			// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
+			string ext = ExtensionOf(argSfxObjectFile);
+			// ReSharper disable once ConvertIfStatementToReturnStatement
+			if (String.IsNullOrEmpty(ext)) {
+				// ReSharper disable once JoinDeclarationAndInitializer
+				string corrected;
+				// ReSharper disable once UseStringInterpolation
+				corrected = String.Format("{0}{1}", argSfxObjectFile, s_defaultExtension);
+				return corrected;
+			} else {
+				return argSfxObjectFile;
+			}
+		}
+
 		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
 		{
 			long start  = fileSob.BaseStream.Position;
@@ -267,11 +288,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			} while (fileSob.ReadByte() == 0);
 		}
 
-		private static void PerformLink(int idx, BinaryWriter fileOut, long[] startLink, int n, string[] args, List<LinkData> link)
+		private static void PerformLink(string sobjFile, BinaryWriter fileOut, long[] startLink, int n, List<LinkData> link)
 		{
-			BinaryReader fileSob  = new BinaryReader(new FileStream(args[idx], FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
+			BinaryReader fileSob  = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 			long         fileSize = fileSob.BaseStream.Length;
-			LuigiFormat("Open {0}", args[idx]);
+			LuigiFormat("Open {0}", sobjFile);
 			fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 			if (SOBJWasRead(fileSob)) {
 				long startIndex = startLink[n];
@@ -414,6 +435,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					LuigiOut("NOTHING");
 				}
 			}
+			fileSob.Close();
 		}
 
 		private static int Main(string[] args)
@@ -431,6 +453,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			string passed;
 			byte   parsedU8;
 			for (idx = 0; idx < args.Length; idx++) {
+				passed = null;
 				if (IsSimpleFlag('V', args[idx])) {
 					s_verbose    = true;
 					areSobs[idx] = false;
@@ -446,6 +469,14 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				} else if (IsByteFlag('B', args[idx], 0, 31, out parsedU8)) {
 					s_ioBuffersKiB = parsedU8;
 					areSobs[idx]   = false;
+					totalSobs--;
+				} else if (IsStringFlag('E', args[idx], out passed)) {
+					if ((passed != null) && (passed.Length >= 2) && (passed[0] == '.')) {
+						s_defaultExtension = passed;
+					} else {
+						Console.WriteLine("ArgLink warning: default extension override must start with a dot.");
+					}
+					areSobs[idx] = false;
 					totalSobs--;
 				} else {
 					areSobs[idx] = true;
@@ -483,6 +514,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				long[]         startLink = new long[totalSobs];
 				int            firstSob  = -1;
 				int            n         = 0;
+				string         sobjFile;
 				for (idx = 0; idx < args.Length; idx++) {
 					if (areSobs[idx]) {
 						if (firstSob < 0) {
@@ -490,9 +522,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						}
 
 						//Check if SOB file is indeed a SOB file
-						// TODO : Append file extension if absent
-						fileSob = new BinaryReader(new FileStream(args[idx], FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
-						LuigiFormat("Open {0}", args[idx]);
+						sobjFile = AppendExtensionIfAbsent(args[idx]);
+						fileSob  = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
+						LuigiFormat("Open {0}", sobjFile);
 						fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 						if (SOBJWasRead(fileSob)) {
 							fileSob.ReadByte();
@@ -521,11 +553,13 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				n = 0;
 				for (idx = firstSob; idx < args.Length; idx++) {
 					if (areSobs[idx]) {
-						PerformLink(idx, fileOut, startLink, n, args, link);
+						sobjFile = AppendExtensionIfAbsent(args[idx]);
+						PerformLink(sobjFile, fileOut, startLink, n, link);
 						n++;
 					}
 				}
 
+				fileOut.Close();
 				return 0;
 			}
 		}
