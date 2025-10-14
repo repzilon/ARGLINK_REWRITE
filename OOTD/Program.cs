@@ -460,7 +460,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
 				return QuickFormat("{0}* {1} = ({0}*)calloc({2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
 			} else if (ctor.StartsWith("List<", StringComparison.Ordinal)) {
-				return QuickFormat("{0} {1} = NULL; int32_t {1}Count = 0;", type, variable);
+				return QuickFormat("{0} {1} = NULL; size_t {1}Count = 0;", type, variable);
 			} else if (ctor.EndsWith("()", StringComparison.Ordinal)) { // struct
 				return QuickFormat("{0}* {1} = ({0}*)calloc(1, sizeof({0}));", type, variable);
 			} else {
@@ -498,18 +498,18 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Length", "strlen($1)");
 			translating = Regex.Replace(translating, @",\s+args,", ", argv,");
 
-			// TODO : Have a more general way to handle parameter type List<LinkData> => LinkData*, int32_t.
+			// TODO : Have a more general way to handle parameter type List<LinkData> => LinkData*, size_t.
 			// It will also have an impact on TranslateListAdd.
-			translating = translating.Replace("Search(LinkData* link, char* name)", "Search(LinkData* link, int32_t linkCount, char* name)");
-			translating = translating.Replace(", LinkData* link)", ", LinkData* link, int32_t* linkCount)");
+			translating = translating.Replace("Search(LinkData* link, char* name)", "Search(LinkData* link, size_t linkCount, char* name)");
+			translating = translating.Replace(", LinkData* link)", ", LinkData* link, size_t* linkCount)");
 			translating = Regex.Replace(translating, @"= Search[(]([A-Za-z0-9_]+),", "= Search($1, *$1Count,");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[(](.*), link\)", "$1($2, link, &linkCount)");
 
-			translating = translating.Replace("char* GetNameChars(FILE* fileSob)", "char* GetNameChars(FILE* fileSob, int32_t* nametempCount)");
-			translating = translating.Replace("char* nametemp = NULL; int32_t nametempCount = 0;", "char* nametemp = NULL; *nametempCount = 0;");
-			translating = translating.Replace("char* nametemp = GetNameChars(fileSob);", "int32_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);");
-			translating = translating.Replace("return String.Concat(GetNameChars(fileSob));", "int32_t Count; return String.Concat(GetNameChars(fileSob, &Count));");
-			translating = translating.Replace("return new String(GetNameChars(fileSob).ToArray());", "int32_t Count; return new String(GetNameChars(fileSob, &Count).ToArray());");
+			translating = translating.Replace("char* GetNameChars(FILE* fileSob)", "char* GetNameChars(FILE* fileSob, size_t* nametempCount)");
+			translating = translating.Replace("char* nametemp = NULL; size_t nametempCount = 0;", "char* nametemp = NULL; *nametempCount = 0;");
+			translating = translating.Replace("char* nametemp = GetNameChars(fileSob);", "size_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);");
+			translating = translating.Replace("return String.Concat(GetNameChars(fileSob));", "size_t Count; return String.Concat(GetNameChars(fileSob, &Count));");
+			translating = translating.Replace("return new String(GetNameChars(fileSob).ToArray());", "size_t Count; return new String(GetNameChars(fileSob, &Count).ToArray());");
 			return translating;
 		}
 
@@ -559,7 +559,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var at       = m.Groups[2].Value;
 			var listType = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL").Groups[1].Value;
 			return String.Format(CultureInfo.InvariantCulture,
-				"int32_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}"+
+				"size_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}"+
 				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}"+
 				"}}{0}{1}Count--;{0}{1} = ({3}*)realloc({1}, {1}Count * sizeof({3}));",
 				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType);

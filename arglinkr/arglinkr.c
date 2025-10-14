@@ -75,7 +75,7 @@ void OutputUsage()
 );
 }
 
-int32_t Search(LinkData* link, int32_t linkCount, char* name)
+int32_t Search(LinkData* link, size_t linkCount, char* name)
 {
 	int32_t nameId = -1;
 	for (int32_t i = 0; i < linkCount; i++) {
@@ -87,7 +87,7 @@ int32_t Search(LinkData* link, int32_t linkCount, char* name)
 	return nameId;
 }
 
-char* GetNameChars(FILE* fileSob, int32_t* nametempCount)
+char* GetNameChars(FILE* fileSob, size_t* nametempCount)
 {
 	char* nametemp = NULL; *nametempCount = 0;
 	char check = 'A';
@@ -103,7 +103,7 @@ char* GetNameChars(FILE* fileSob, int32_t* nametempCount)
 
 char* GetName(FILE* fileSob)
 {
-	int32_t Count; char* functionResult = GetNameChars(fileSob, &Count); char* resultString = (char*)calloc(Count + 1, sizeof(char)); memmove(resultString, functionResult, Count); return resultString;
+	size_t Count; char* functionResult = GetNameChars(fileSob, &Count); char* resultString = (char*)calloc(Count + 1, sizeof(char)); memmove(resultString, functionResult, Count); return resultString;
 }
 
 bool SOBJWasRead(FILE* fileSob)
@@ -256,11 +256,11 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	}
 }
 
-void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
+void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 {
 	do {
 		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData));
-		int32_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);
+		size_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);
 
 		if (nametempCount <= 0) {
 			break;
@@ -273,7 +273,7 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, int32_t* linkCount)
 	} while (fgetc(fileSob) == 0);
 }
 
-void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, int32_t* linkCount)
+void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, size_t* linkCount)
 {
 	FILE* fileSob = fopen(sobjFile, "rb"); uint16_t fileSobZone = s_ioBuffersKiB * 1024; char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
@@ -289,7 +289,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 				char* name = GetName(fileSob);
 				int32_t nameId = Search(link, *linkCount, name);
 
-				Calculation* linkcalc = NULL; int32_t linkcalcCount = 0;
+				Calculation* linkcalc = NULL; size_t linkcalcCount = 0;
 				Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
 				linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 
@@ -390,7 +390,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					}
 
 					linkcalc[calcidx] = *calctemp;
-					int32_t after = linkcalcCount - 1 - highestpriidx;
+					size_t after = linkcalcCount - 1 - highestpriidx;
 							if (after > 0) {
 								memmove(&(linkcalc[highestpriidx]), &(linkcalc[highestpriidx + 1]), after * sizeof(Calculation));
 							}
@@ -502,7 +502,7 @@ int32_t main(int argc, char* argv[])
 
 		// Steps 1 & 2: Input all data and list all links
 		puts("Processing Externals.");
-		LinkData* link = NULL; int32_t linkCount = 0;
+		LinkData* link = NULL; size_t linkCount = 0;
 		int64_t* startLink = (int64_t*)calloc(totalSobs, sizeof(int64_t));
 		int32_t firstSob = -1;
 		int32_t n = 0;
