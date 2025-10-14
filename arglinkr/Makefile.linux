@@ -1,0 +1,29 @@
+## Makefile (GNU dialect) to build ArgLink Re-Rewrite under Linux
+
+CC := gcc
+CXX := gpp
+CFLAGS_OPTIM := -O2 -pipe -fomit-frame-pointer
+CFLAGS_WARN := -Wall -Wformat -Wformat=2 -Wconversion -Wimplicit-fallthrough -Werror=format-security \
+-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 \
+-fstack-protector-strong \
+-fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing \
+-Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion \
+-fstack-clash-protection -Wtrampolines \
+-fstrict-flex-arrays=3 -ftrivial-auto-var-init=zero \
+-Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries \
+-Wbidi-chars=any
+CXXFLAGS_OPTIM := $(CFLAGS_OPTIM) -fvisibility=hidden
+CXXFLAGS_WARN := $(CFLAGS_WARN) -D_GLIBCXX_ASSERTIONS
+
+all: arglinkr
+
+arglinkr: arglinkr.c
+	$(CC) $(CFLAGS_OPTIM) $(CFLAGS_WARN) arglinkr.c -o $@
+
+clean:
+	rm -f arglinkr
+
+help:
+	@echo "Available targets: all clean"
+
+.PHONY: all clean install help
