@@ -28,6 +28,12 @@ namespace ARGLINK_REWRITE
 		public int Value;
 	}
 
+	internal enum BSDExitCodes : byte
+	{
+		Success = 0,
+		BadCLIUsage = 64
+	}
+
 	internal static class Program
 	{
 		// Default values as stated in usage text
@@ -495,11 +501,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 			if (totalSobs < 1) {
 				OutputUsage();
-				return 1;
+				return (int)BSDExitCodes.BadCLIUsage;
 			} else if (String.IsNullOrEmpty(romFile)) {
 				// Standard error is reserved for verbose output
 				Console.WriteLine("ArgLink error: no ROM file was specified.");
-				return 1;
+				return (int)BSDExitCodes.BadCLIUsage;
 			} else {
 				BinaryReader fileSob;
 				BinaryWriter fileOut = new BinaryWriter(new FileStream(romFile, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
@@ -568,7 +574,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				fileOut.Close();
 
-				return 0;
+				return (int)BSDExitCodes.Success;
 			}
 		}
 	}

@@ -9,6 +9,13 @@ using System.Text.RegularExpressions;
 
 namespace Exploratorium.ArgSfx.OutOfThisDimension
 {
+	internal enum BSDExitCodes : byte
+	{
+		Success = 0,
+		BadCLIUsage = 64,
+		CannotCreateOutputFile = 73
+	}
+
 	internal static class Program
 	{
 		private static readonly Dictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
@@ -51,10 +58,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			OutputLogo();
 			if (args.Length < 2) {
 				OutputUsage();
-				return 1;
+				return (int)BSDExitCodes.BadCLIUsage;
 			} else if (args[0] == args[1]) {
 				Console.Error.WriteLine("OOTD Error: source and destination are the same file.");
-				return 2;
+				return (int)BSDExitCodes.CannotCreateOutputFile;
 			} else {
 				var        strAllSource = File.ReadAllText(args[0]);
 				var        blnFile      = true;
@@ -82,6 +89,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = RemoveAnyKeyword(strCleaned, "static");
 					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+( [a-z]+)? [A-Za-z_]+\r?\n", "");
 					strCleaned = RedeclareStructs(strCleaned);
+					strCleaned = RedeclareEnums(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
 					strCleaned = ConvertParamArrayArguments(strCleaned);
 					strCleaned = ConvertOutArguments(strCleaned);
@@ -97,12 +105,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 					// Write C code
 					strCleaned = strCleaned.Trim().Replace("\r\n", "\n").Replace('\r', '\n'); // Normalize to LF
-					strCleaned = strCleaned.Replace("\n\n\n", "\n\n");			// Coalesce white space
+					strCleaned = strCleaned.Replace("\n\n\n", "\n\n");                        // Coalesce white space
 					strCleaned = Regex.Replace(strCleaned, "[ ]+", " ");
 					strCleaned = strCleaned.Replace("\t\t ", "\t\t");
-					strCleaned = strCleaned.Replace("\n", Environment.NewLine);	// Normalize to platform line ending
+					strCleaned = strCleaned.Replace("\n", Environment.NewLine); // Normalize to platform line ending
 					destination.WriteLine(strCleaned);
-					return 0;
+					return (int)BSDExitCodes.Success;
 				} finally {
 					if (blnFile && (destination != null)) {
 						destination.Close();
@@ -152,9 +160,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		}
 
 		private static MatchCollection FindStringLiterals(string extract)
-        {
-        	return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
-        }
+		{
+			return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
+		}
 
 		#region RemoveAnyKeyword
 		private static string RemoveAnyKeyword(string extract, params string[] keywords)
@@ -188,6 +196,29 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return Regex.Replace(translating, @"struct ([A-Za-z0-9_]+)\s+{(.*?)}", "typedef struct $1 {$2} $1;",
 				RegexOptions.Singleline);
 		}
+
+		#region RedeclareEnums
+		private static string RedeclareEnums(string translating)
+		{
+			var lstEnums = new List<string>();
+			translating = Regex.Replace(translating, @"enum ([A-Za-z0-9_]+)(?:\s+:\s+([A-Za-z0-9_]+))?\s+{(.*?)}",
+				m => RedeclareEnum(m, lstEnums), RegexOptions.Singleline);
+			var c = lstEnums.Count;
+			for (var i = 0; i < c; i++) {
+				translating = translating.Replace(lstEnums[i] + ".", "");
+			}
+			return translating;
+		}
+
+		private static string RedeclareEnum(Match m, List<string> lstEnums)
+		{
+			var g        = m.Groups;
+			var enumName = g[1].Value;
+			lstEnums.Add(enumName);
+			return QuickFormat("typedef enum {{1}} {0};", enumName, g[3].Value);
+		}
+		#endregion
+
 
 		private static string ReplaceDataTypeOfVariables(string translating)
 		{
@@ -322,7 +353,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var g           = m.Groups;
 			var strArgument = ReformatArgument(g[2].Value, false);
 			// Note: strArgument ends with );
-			return QuickFormat("size_t nbytes = snprintf(NULL, 0, {1} {0} = (char*)calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
+			return QuickFormat(
+				"size_t nbytes = snprintf(NULL, 0, {1} {0} = (char*)calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
 				g[1].Value, strArgument.Trim());
 		}
 
@@ -355,7 +387,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				return "%X";
 			} else {
 				var position = Byte.Parse(m2.Groups[1].Value);
-				var item =  itemsToFormat[position].Groups[1].Value;
+				var item     = itemsToFormat[position].Groups[1].Value;
 				if (item == "flag") {
 					return "%c";
 				} else if ((item == "min") || (item == "max")) {
@@ -559,8 +591,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var at       = m.Groups[2].Value;
 			var listType = Regex.Match(translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + " = NULL").Groups[1].Value;
 			return String.Format(CultureInfo.InvariantCulture,
-				"size_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}"+
-				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}"+
+				"size_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}" +
+				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}" +
 				"}}{0}{1}Count--;{0}{1} = ({3}*)realloc({1}, {1}Count * sizeof({3}));",
 				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType);
 		}
@@ -568,7 +600,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static Match LastMatchBefore(int limit, string haystack, string pattern)
 		{
 			var mtcAll = Regex.Matches(haystack, pattern);
-			var c = mtcAll.Count;
+			var c      = mtcAll.Count;
 			for (int i = c - 1; i >= 0; i--) {
 				if (mtcAll[i].Success && (mtcAll[i].Index < limit)) {
 					return mtcAll[i];
@@ -579,13 +611,14 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string TranslateListAdd(Match m, string translating1)
 		{
-			var list     = m.Groups[1].Value;
-			var item     = m.Groups[2].Value;
-			var limit    = m.Index;
-			var mtcParam = LastMatchBefore(limit, translating1, @"([A-Za-z0-9_]+)[*]\s+" + list + @", (([A-Za-z0-9_*]+)\s+|[*])" + list + @"Count\)");
+			var list  = m.Groups[1].Value;
+			var item  = m.Groups[2].Value;
+			var limit = m.Index;
+			var mtcParam = LastMatchBefore(limit, translating1,
+				@"([A-Za-z0-9_]+)[*]\s+" + list + @", (([A-Za-z0-9_*]+)\s+|[*])" + list + @"Count\)");
 			string countType, listType;
 			if (mtcParam != null) {
-				listType = mtcParam.Groups[1].Value;
+				listType  = mtcParam.Groups[1].Value;
 				countType = mtcParam.Groups[2].Value.Trim();
 			} else {
 				countType = LastMatchBefore(limit, translating1, @"(([A-Za-z0-9_]+)\s+|[*])" + list + "Count = 0").Groups[1].Value.Trim();
@@ -601,9 +634,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string TranslateStringFromCharArray(Match m)
 		{
-			var leftHand    = m.Groups[1].Value.Trim();
-			var rightHand   = m.Groups[2].Value;
-			var openParen   = rightHand.IndexOf('(');
+			var leftHand  = m.Groups[1].Value.Trim();
+			var rightHand = m.Groups[2].Value;
+			var openParen = rightHand.IndexOf('(');
 			if ((openParen >= 0) && (rightHand.IndexOf(')') > openParen)) { // function call on right hand
 				// GetNameChars[(](.*),\s+(.*Count)[)]
 				var functionName = rightHand.Substring(0, openParen);

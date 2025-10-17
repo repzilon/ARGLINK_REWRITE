@@ -18,6 +18,11 @@ typedef struct Calculation {
 	int32_t Value;
 } Calculation;
 
+typedef enum {
+	Success = 0,
+	BadCLIUsage = 64
+} BSDExitCodes;
+
 // Default values as stated in usage text
 uint8_t s_ioBuffersKiB = 10;
 char* s_defaultExtension = ".SOB";
@@ -220,9 +225,9 @@ char* AppendExtensionIfAbsent(char* argSfxObjectFile)
 {
 	// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
 	char* ext = ExtensionOf(argSfxObjectFile);
-		if (((ext == NULL) || (strlen(ext) < 1))) {
-				char* corrected;
-				size_t nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); corrected = (char*)calloc(nbytes, sizeof(char)); snprintf(corrected, nbytes, "%s%s", argSfxObjectFile, s_defaultExtension);
+	if (((ext == NULL) || (strlen(ext) < 1))) {
+		char* corrected;
+		size_t nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); corrected = (char*)calloc(nbytes, sizeof(char)); snprintf(corrected, nbytes, "%s%s", argSfxObjectFile, s_defaultExtension);
 		return corrected;
 	} else {
 		return argSfxObjectFile;
@@ -485,11 +490,11 @@ int32_t main(int argc, char* argv[])
 
 	if (totalSobs < 1) {
 		OutputUsage();
-		return 1;
+		return (int32_t)BadCLIUsage;
 	} else if (((romFile == NULL) || (strlen(romFile) < 1))) {
 		// Standard error is reserved for verbose output
 		puts("ArgLink error: no ROM file was specified.");
-		return 1;
+		return (int32_t)BadCLIUsage;
 	} else {
 		FILE* fileSob;
 		FILE* fileOut = fopen(romFile, "wb"); uint16_t fileOutZone = s_ioBuffersKiB * 1024; char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
@@ -558,6 +563,6 @@ int32_t main(int argc, char* argv[])
 
 		fclose(fileOut); free(fileOutBuffer);
 
-		return 0;
+		return (int32_t)Success;
 	}
 }
