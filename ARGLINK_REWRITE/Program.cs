@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using CSize = System.Int32;
 
 // ReSharper disable SuggestVarOrType_SimpleTypes
 // ReSharper disable SuggestVarOrType_Elsewhere
@@ -148,7 +149,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				   (fileSob.ReadByte() << 24);
 		}
 
-		private static void Recopy(BinaryReader source, int size, BinaryWriter destination, int offset)
+		private static void Recopy(BinaryReader source, CSize size, BinaryWriter destination, int offset)
 		{
 			byte[] buffer = new byte[size];
 			source.Read(buffer, 0, size);
@@ -252,10 +253,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
 		{
-			long start  = fileSob.BaseStream.Position;
-			int  offset = ReadLEInt32(fileSob);
-			int  size   = ReadLEInt32(fileSob);
-			int  type   = fileSob.ReadByte();
+			long  start  = fileSob.BaseStream.Position;
+			int   offset = ReadLEInt32(fileSob);
+			CSize size   = ReadLEInt32(fileSob);
+			int   type   = fileSob.ReadByte();
 
 			LuigiFormat("{0:X}: 0x{1:X}  /// Size: 0x{2:X} / Offset 0x{3:X} / Type {4:X}", i,
 				start, size, offset, type);

@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define STRINGIZE_DETAIL(x) #x
+#define STRINGIZE(x) STRINGIZE_DETAIL(x)
+
 typedef struct LinkData {
 	char* Name;
 	int32_t Value;
@@ -97,7 +100,7 @@ char* GetNameChars(FILE* fileSob, size_t* nametempCount)
 	char* nametemp = NULL; *nametempCount = 0;
 	char check = 'A';
 	while (check != 0) {
-		check = fgetc(fileSob);
+		{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { check = (char)whatRead; } };
 		if (check != 0) {
 			(*nametempCount)++; nametemp = (char*)realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check;
 		}
@@ -135,9 +138,9 @@ int32_t ReadLEInt32(FILE* fileSob)
 		(fgetc(fileSob) << 24);
 }
 
-void Recopy(FILE* source, int32_t size, FILE* destination, int32_t offset)
+void Recopy(FILE* source, size_t size, FILE* destination, int32_t offset)
 {
-	uint8_t* buffer = (uint8_t*)calloc(size, sizeof(uint8_t));
+	uint8_t* buffer = (uint8_t*)calloc((size_t)size, sizeof(uint8_t));
 	fread(buffer, sizeof(uint8_t), size, source);
 	fseek(destination, offset, SEEK_SET);
 	fwrite(buffer, sizeof(uint8_t), size, destination);
@@ -227,7 +230,7 @@ char* AppendExtensionIfAbsent(char* argSfxObjectFile)
 	char* ext = ExtensionOf(argSfxObjectFile);
 	if (((ext == NULL) || (strlen(ext) < 1))) {
 		char* corrected;
-		size_t nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); corrected = (char*)calloc(nbytes, sizeof(char)); snprintf(corrected, nbytes, "%s%s", argSfxObjectFile, s_defaultExtension);
+		int nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); if (nbytes < 0) { puts("ArgLink error: cannot evaluate length with snprintf, source code line " STRINGIZE(__LINE__)); exit(70); } else { nbytes++; corrected = (char*)calloc((size_t)nbytes, sizeof(char)); if (corrected == NULL) { puts("ArgLink error: cannot allocate memory, source code line " STRINGIZE(__LINE__)); exit(70); } else { snprintf(corrected, (size_t)nbytes, "%s%s", argSfxObjectFile, s_defaultExtension); } }
 		return corrected;
 	} else {
 		return argSfxObjectFile;
@@ -238,8 +241,8 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 {
 	int64_t start = ftell(fileSob);
 	int32_t offset = ReadLEInt32(fileSob);
-	int32_t size = ReadLEInt32(fileSob);
-	int32_t type = fgetc(fileSob);
+	size_t size = ReadLEInt32(fileSob);
+	int32_t type = fgetc(fileSob); if (type == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
 
 	LuigiFormat("%X: 0x%X /// Size: 0x%X / Offset 0x%X / Type %X", i,
 		start, size, offset, type);
@@ -249,8 +252,8 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		Recopy(fileSob, size, fileOut, offset);
 	} else if (type == 1) {
 		//External File
-		fgetc(fileSob);
-		fgetc(fileSob);
+		if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
+		if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
 
 		//Get file path
 		char* filepath = GetName(fileSob);
@@ -305,15 +308,15 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					name = GetName(fileSob);
 					nameId = Search(link, *linkCount, name);
 					LuigiFormat("----%s : %X\n", name, link[nameId].Value);
-					fgetc(fileSob);
+					if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
 				}
 
 				ReadLEInt32(fileSob);
 				ReadLEInt32(fileSob);
 
 				//List all operations
-				uint8_t calccheck1 = fgetc(fileSob);
-				uint8_t calccheck2 = fgetc(fileSob);
+				uint8_t calccheck1; { int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck1 = (uint8_t)whatRead; } };
+				uint8_t calccheck2; { int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck2 = (uint8_t)whatRead; } };
 				while (calccheck1 != 0 && calccheck2 != 0) {
 					// Note: ReadInt32() introduces a side effect and must be called
 					// under any circumstances
@@ -323,8 +326,8 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 						calctemp->Value = link[nameId].Value;
 					}
 
-					calccheck1 = fgetc(fileSob);
-					calccheck2 = fgetc(fileSob);
+					{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck1 = (uint8_t)whatRead; } };
+					{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck2 = (uint8_t)whatRead; } };
 					linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
 				}
 
@@ -407,7 +410,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 				int32_t offset = ReadLEInt32(fileSob);
 				fseek(fileOut, offset + 1, SEEK_SET);
 				LuigiFormat("----%X : %X\n", offset, linkcalc[0].Value);
-				uint8_t format = fgetc(fileSob);
+				uint8_t format; { int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { format = (uint8_t)whatRead; } };
 				int32_t firstValue = linkcalc[0].Value;
 				if (format == 0x00) { // 8-bit
 					fputc(firstValue, fileOut);
@@ -441,7 +444,7 @@ int32_t main(int argc, char* argv[])
 	// Parse command line
 	// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 	int32_t idx;
-	bool* areSobs = (bool*)calloc((argc - 1), sizeof(bool));
+	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool));
 	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
 	char* romFile = NULL;
@@ -508,7 +511,7 @@ int32_t main(int argc, char* argv[])
 		// Steps 1 & 2: Input all data and list all links
 		puts("Processing Externals.");
 		LinkData* link = NULL; size_t linkCount = 0;
-		int64_t* startLink = (int64_t*)calloc(totalSobs, sizeof(int64_t));
+		int64_t* startLink = (int64_t*)calloc((size_t)totalSobs, sizeof(int64_t));
 		int32_t firstSob = -1;
 		int32_t n = 0;
 		char* sobjFile;
@@ -524,10 +527,10 @@ int32_t main(int argc, char* argv[])
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {
-					fgetc(fileSob);
-					fgetc(fileSob);
-					int32_t count = fgetc(fileSob);
-					fgetc(fileSob);
+					if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
+					if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
+					int32_t count = fgetc(fileSob); if (count == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
+					if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
 
 					for (int32_t i = 0; i < count; i++) {
 						// Step 1: Input all data into output
@@ -559,7 +562,7 @@ int32_t main(int argc, char* argv[])
 
 		fseek(fileOut, 0, SEEK_END); int64_t finalSize = ftell(fileOut);
 		finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
-		printf("| Publics: %d\tFiles: %d\tROM Size: %dKiB |\n", linkCount, totalSobs, finalSize);
+		printf("| Publics: %u\tFiles: %d\tROM Size: %lldKiB |\n", linkCount, totalSobs, finalSize);
 
 		fclose(fileOut); free(fileOutBuffer);
 

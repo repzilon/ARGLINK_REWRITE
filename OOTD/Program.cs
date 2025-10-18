@@ -13,7 +13,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 	{
 		Success = 0,
 		BadCLIUsage = 64,
-		CannotCreateOutputFile = 73
+		InternalError = 70,
+		CannotCreateOutputFile = 73,
+		BadFileIO = 74,
 	}
 
 	internal static class Program
@@ -23,9 +25,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			{ "System.IO", new[] { "stdio.h" } }
 		};
 
+		// Yes, CSize is intentionally signed in C# and unsigned in C
 		private static readonly Dictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
-			{ "string", "char*" }, { "ushort", "uint16_t" }, { "int", "int32_t" }, { "long", "int64_t" },
-			{ "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
+			{ "string", "char*" }, { "ushort", "uint16_t" }, { "CSize", "size_t" }, { "int", "int32_t" },
+			{ "long", "int64_t" }, { "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
 			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" }
 		};
 
@@ -79,7 +82,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					foreach (var strInclude in UsingsToIncludes(strAllSource)) {
 						destination.WriteLine("#include <{0}>", strInclude);
 					}
+					destination.WriteLine();
 
+					destination.WriteLine("#define STRINGIZE_DETAIL(x) #x");
+					destination.WriteLine("#define STRINGIZE(x) STRINGIZE_DETAIL(x)");
 					destination.WriteLine();
 
 					// Translate C# code to C
@@ -87,7 +93,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
 					strCleaned = RemoveAnyKeyword(strCleaned, "internal", "private", "public", "protected");
 					strCleaned = RemoveAnyKeyword(strCleaned, "static");
-					strCleaned = Regex.Replace(strCleaned, @"// ReSharper [a-z]+( [a-z]+)? [A-Za-z_]+\r?\n", "");
+					strCleaned = Regex.Replace(strCleaned, @"(?:\t| )*// ReSharper [a-z]+(?: [a-z]+)? [A-Za-z_]+\r?\n", "");
 					strCleaned = RedeclareStructs(strCleaned);
 					strCleaned = RedeclareEnums(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
@@ -354,8 +360,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var strArgument = ReformatArgument(g[2].Value, false);
 			// Note: strArgument ends with );
 			return QuickFormat(
-				"size_t nbytes = snprintf(NULL, 0, {1} {0} = (char*)calloc(nbytes, sizeof(char)); snprintf({0}, nbytes, {1}",
-				g[1].Value, strArgument.Trim());
+				"int nbytes = snprintf(NULL, 0, {1} if (nbytes < 0) { " +
+				"puts(\"ArgLink error: cannot evaluate length with snprintf, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { " +
+				"nbytes++; {0} = (char*)calloc((size_t)nbytes, sizeof(char)); if ({0} == NULL) { " +
+				"puts(\"ArgLink error: cannot allocate memory, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { "+
+				"snprintf({0}, (size_t)nbytes, {1} } }",
+				g[1].Value, strArgument.Trim(), ((byte)BSDExitCodes.InternalError).ToString());
 		}
 
 		private static string ReformatArgument(string extracted, bool addNewLine)
@@ -392,9 +402,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					return "%c";
 				} else if ((item == "min") || (item == "max")) {
 					return "%hhu";
+				} else if (item == "finalSize") {
+					return "%lld";
+				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) {
+					return "%u";
 				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
-				(item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0) ||
-				(item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0)) {
+						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) {
 					return "%d";
 				} else {
 					return "%s";
@@ -421,7 +434,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				@"([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)\s+=\s+([A-Za-z0-9_]+)\.BaseStream\.Length",
 				"fseek($3, 0, SEEK_END); $1 $2 = ftell($3)");
 
-			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Read(Char|Byte)\(\)", "fgetc($1)");
+			translating = Regex.Replace(translating,
+				@"(?:(?:([A-Za-z0-9_]+)\s+)?([A-Za-z0-9_]+)\s+=\s+)?([A-Za-z0-9_]+)\.Read(Char|Byte)\(\)(?:\s+([^\s]*))?",
+				ReplaceReadByte);
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadInt32\(\)", "ReadLEInt32($1)");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.ReadUInt16\(\)", "fgetc($1) | (fgetc($1) << 8)");
 
@@ -429,12 +444,41 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Write\(\(uint8_t[)](.*)[)]", "fputc($2, $1)");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Write\(\(uint16_t[)](.*)[)]", "fputc($2 & 0xff, $1); fputc($2 >> 8, $1)");
 
-			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.(Read|Write)[(](.*?), 0, (.*?)[)]", "f$2($3, sizeof(uint8_t), $4, $1)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.(Read|Write)[(](.*?), 0, (.*)[)];", "f$2($3, sizeof(uint8_t), $4, $1);");
 			translating = translating.Replace("fRead(", "fread(").Replace("fWrite(", "fwrite(");
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Close\(\)", "fclose($1); free($1Buffer)");
 
 			return translating;
+		}
+
+		private static string ReplaceReadByte(Match m)
+		{
+			var g            = m.Groups;
+			var fileVariable = g[3].Value;
+			var postOperator = g[5].Value; // == != | <<
+			if (String.IsNullOrEmpty(postOperator)) {
+				var outputType     = g[1].Value;
+				var outputVariable = g[2].Value;
+				var strBadFileIO   = ((byte)BSDExitCodes.BadFileIO).ToString();
+				if (String.IsNullOrEmpty(outputType) && String.IsNullOrEmpty(outputVariable)) { // byte skip;
+					return QuickFormat(
+						"if (fgetc({0}) == EOF) { puts(\"ArgLink error: reading byte from {0} failed, source code line \" STRINGIZE(__LINE__)); exit({1}); }",
+						fileVariable, strBadFileIO);
+				} else if (String.IsNullOrEmpty(outputType)) { // assignment of previously declared variable
+					var readWidth = g[4].Value;
+					return String.Format(CultureInfo.InvariantCulture,
+						"{{ int whatRead = fgetc({1}); if (whatRead == EOF) {{ puts(\"ArgLink error: reading byte from {1} failed, source code line \" STRINGIZE(__LINE__)); exit({3}); }} else {{ {0} = ({2})whatRead; }} }}",
+						outputVariable, fileVariable, readWidth == "Char" ? "char" : "uint8_t", strBadFileIO);
+				} else { // declaration and assignment of variable
+					return String.Format(CultureInfo.InvariantCulture, (outputType == "int") || (outputType == "int32_t") ?
+						"{0} {1} = fgetc({2}); if ({1} == EOF) {{ puts(\"ArgLink error: reading byte from {2} failed, source code line \" STRINGIZE(__LINE__)); exit({3}); }}" :
+						"{0} {1}; {{ int whatRead = fgetc({2}); if (whatRead == EOF) {{ puts(\"ArgLink error: reading byte from {2} failed, source code line \" STRINGIZE(__LINE__)); exit({3}); }} else {{ {1} = ({0})whatRead; }} }}",
+						outputType, outputVariable, fileVariable, strBadFileIO);
+				}
+			} else {
+				return QuickFormat("fgetc({0}) {1}", fileVariable, postOperator);
+			}
 		}
 
 		private static string CFileOpenMode(string method)
@@ -490,7 +534,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			if (variable.EndsWith("[]", StringComparison.Ordinal)) { // array
 				var bracket = ctor.IndexOf('[');
 				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
-				return QuickFormat("{0}* {1} = ({0}*)calloc({2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
+				return QuickFormat("{0}* {1} = ({0}*)calloc((size_t){2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
 			} else if (ctor.StartsWith("List<", StringComparison.Ordinal)) {
 				return QuickFormat("{0} {1} = NULL; size_t {1}Count = 0;", type, variable);
 			} else if (ctor.EndsWith("()", StringComparison.Ordinal)) { // struct
