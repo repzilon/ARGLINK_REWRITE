@@ -1,7 +1,7 @@
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -258,7 +258,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		//Get file path
 		char* filepath = GetName(fileSob);
 		LuigiFormat("--Open External File: %s\n", filepath);
-		FILE* fileExt = fopen(filepath, "rb"); uint16_t fileExtZone = s_ioBuffersKiB * 1024; char* fileExtBuffer = (fileExtZone > 0) ? (char*)calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
+		FILE* fileExt = fopen(filepath, "rb"); size_t fileExtZone = (size_t)(s_ioBuffersKiB * 1024); char* fileExtBuffer = (fileExtZone > 0) ? (char*)calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
 		Recopy(fileExt, size, fileOut, offset);
 		fclose(fileExt); free(fileExtBuffer);
 	}
@@ -283,7 +283,7 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 
 void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, size_t* linkCount)
 {
-	FILE* fileSob = fopen(sobjFile, "rb"); uint16_t fileSobZone = s_ioBuffersKiB * 1024; char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
+	FILE* fileSob = fopen(sobjFile, "rb"); size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
 	LuigiFormat("Open %s\n", sobjFile);
 	fseek(fileSob, 0, SEEK_SET);
@@ -436,7 +436,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 	fclose(fileSob); free(fileSobBuffer);
 }
 
-int32_t main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	// TODO : get, split and parse ALFLAGS environment variable
 	// Do it before parsing command line so command line can override environment
@@ -500,7 +500,7 @@ int32_t main(int argc, char* argv[])
 		return (int32_t)BadCLIUsage;
 	} else {
 		FILE* fileSob;
-		FILE* fileOut = fopen(romFile, "wb"); uint16_t fileOutZone = s_ioBuffersKiB * 1024; char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
+		FILE* fileOut = fopen(romFile, "wb"); size_t fileOutZone = (size_t)(s_ioBuffersKiB * 1024); char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
 		// Fill Output file to 1 MiB
 		puts("Constructing ROM Image.");
 		fseek(fileOut, 0, SEEK_SET);
@@ -523,7 +523,7 @@ int32_t main(int argc, char* argv[])
 
 				//Check if SOB file is indeed a SOB file
 				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
-				fileSob = fopen(sobjFile, "rb"); uint16_t fileSobZone = s_ioBuffersKiB * 1024; char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
+				fileSob = fopen(sobjFile, "rb"); size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {
@@ -562,7 +562,7 @@ int32_t main(int argc, char* argv[])
 
 		fseek(fileOut, 0, SEEK_END); int64_t finalSize = ftell(fileOut);
 		finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
-		printf("| Publics: %u\tFiles: %d\tROM Size: %lldKiB |\n", linkCount, totalSobs, finalSize);
+		printf("| Publics: %" PRIuMAX "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", linkCount, totalSobs, finalSize);
 
 		fclose(fileOut); free(fileOutBuffer);
 

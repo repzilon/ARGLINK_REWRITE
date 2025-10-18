@@ -21,7 +21,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 	internal static class Program
 	{
 		private static readonly Dictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
-			{ "System", new[] { "ctype.h", "stdarg.h", "stdbool.h", "stdint.h", "string.h", "stdlib.h" } },
+			{ "System", new[] { "ctype.h", "inttypes.h", "stdarg.h", "stdbool.h", "string.h", "stdlib.h" } },
 			{ "System.IO", new[] { "stdio.h" } }
 		};
 
@@ -403,12 +403,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				} else if ((item == "min") || (item == "max")) {
 					return "%hhu";
 				} else if (item == "finalSize") {
-					return "%lld";
+					return "%\" PRId64 \""; // "%lld";
 				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) {
-					return "%u";
+					return "%\" PRIuMAX \""; // "%u";
 				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
 						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) {
-					return "%d";
+					return "%\" PRId32 \""; // "%d";
 				} else {
 					return "%s";
 				}
@@ -504,7 +504,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g = m.Groups;
 			return String.Format(CultureInfo.InvariantCulture,
-				"{0} = fopen({1}, \"{2}\"); uint16_t {0}Zone = {3}; char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
+				"{0} = fopen({1}, \"{2}\"); size_t {0}Zone = (size_t)({3}); char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
 				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
 		}
 
@@ -569,6 +569,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Count", "$1Count");
 
 			translating = Regex.Replace(translating, @"\s+Main[(]char[*]\s+args\[\][)]", " main(int argc, char* argv[])");
+			translating = translating.Replace("int32_t main(", "int main("); // DJGPP dislikes anything other than int
 			translating = translating.Replace("char* args[]", "char* argv[]");
 			translating = translating.Replace("args.Length", "(argc - 1)").Replace("args[", "argv[1 + ");
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Length", "strlen($1)");
