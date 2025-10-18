@@ -398,16 +398,16 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			} else {
 				var position = Byte.Parse(m2.Groups[1].Value);
 				var item     = itemsToFormat[position].Groups[1].Value;
-				if (item == "flag") {
+				if (item == "flag") { // char
 					return "%c";
-				} else if ((item == "min") || (item == "max")) {
+				} else if ((item == "min") || (item == "max")) { // uint8_t
 					return "%hhu";
-				} else if (item == "finalSize") {
+				} else if (item == "finalSize") { // int64_t
 					return "%\" PRId64 \""; // "%lld";
-				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) {
-					return "%\" PRIuMAX \""; // "%u";
+				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) { // size_t
+					return "%\" PRIuPTR \""; // "%u";
 				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
-						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) {
+						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) { // int32_t
 					return "%\" PRId32 \""; // "%d";
 				} else {
 					return "%s";

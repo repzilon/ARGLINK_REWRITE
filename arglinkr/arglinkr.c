@@ -86,7 +86,7 @@ void OutputUsage()
 int32_t Search(LinkData* link, size_t linkCount, char* name)
 {
 	int32_t nameId = -1;
-	for (int32_t i = 0; i < linkCount; i++) {
+	for (int32_t i = 0; i < (int32_t)linkCount; i++) {	// Cast for MSVC
 		if (strcmp(link[i].Name, name) == 0) {
 			nameId = i;
 		}
@@ -337,7 +337,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					int32_t highestdeep = -1;
 					int32_t highestdeepidx = -1;
 					int32_t i;
-					for (i = 1; i < linkcalcCount; i++) {
+					for (i = 1; i < (int32_t)linkcalcCount; i++) {	// Cast for MSVC
 						//Get the first highest one
 						if (highestdeep < linkcalc[i].Deep) {
 							highestdeep = linkcalc[i].Deep;
@@ -348,7 +348,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					//Check for highest priority
 					int32_t highestpri = -1;
 					int32_t highestpriidx = -1;
-					for (i = highestdeepidx; i < linkcalcCount; i++) {
+					for (i = highestdeepidx; i < (int32_t)linkcalcCount; i++) {	// Cast for MSVC
 						//Get the first highest one
 						if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
 							break;
@@ -562,7 +562,7 @@ int main(int argc, char* argv[])
 
 		fseek(fileOut, 0, SEEK_END); int64_t finalSize = ftell(fileOut);
 		finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
-		printf("| Publics: %" PRIuMAX "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", linkCount, totalSobs, finalSize);
+		printf("| Publics: %" PRIuPTR "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", linkCount, totalSobs, finalSize);
 
 		fclose(fileOut); free(fileOutBuffer);
 
