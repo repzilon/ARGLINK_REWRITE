@@ -1,11 +1,29 @@
-clean:
-	$(MAKE) -C arglinkr clean
+clean-managed:
 	rm -rf ARGLINK_REWRITE/bin
 	rm -rf ARGLINK_REWRITE/obj
 	rm -rf OOTD/bin
 	rm -rf OOTD/obj
 
-help:
-	@echo "Available targets: clean"
+clean-msvc:
+	rm -rf Debug
+	rm -rf Release
+	rm -rf x64
+	rm -rf arglinkr/Debug
+	rm -rf arglinkr/Release
+	rm -rf arglinkr/x64
 
-.PHONY: help clean
+clean: clean-managed clean-msvc
+	$(MAKE) -C arglinkr clean
+	
+distclean: clean-managed clean-msvc
+	$(MAKE) -C arglinkr distclean
+	rm -f */*.bak
+
+mrproper: distclean
+	rm -f */*.user
+	rm -f */*.layout
+
+help:
+	@echo "Available targets: clean distclean mrproper"
+
+.PHONY: help clean-managed clean-msvc clean distclean mrproper

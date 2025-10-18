@@ -82,7 +82,15 @@ arglinkr$(EXE): arglinkr.c
 clean:
 	$(RM) arglinkr$(EXE)
 
-help:
-	@echo "Available targets: all clean"
+distclean: clean
+	$(RM) arglinkr.o
+	$(RM) ARGLINKR.o
+	$(RM) Makefile.win
+	$(RM) *.log
+	$(RM) *.bak
+	$(RM) arglinkr.exe
 
-.PHONY: all clean install help
+help:
+	@echo "Available targets: all clean distclean"
+
+.PHONY: all clean distclean help
