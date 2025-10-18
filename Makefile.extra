@@ -22,6 +22,10 @@ distclean: clean-managed clean-msvc
 mrproper: distclean
 	rm -f */*.user
 	rm -f */*.layout
+	rm -f .gitignore.bak
+	rm -f .DS_Store
+	rm -f */.DS_Store
+	rm -rf .vs
 
 help:
 	@echo "Available targets: clean distclean mrproper"
