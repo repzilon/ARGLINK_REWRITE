@@ -86,7 +86,7 @@ void OutputUsage()
 int32_t Search(LinkData* link, size_t linkCount, char* name)
 {
 	int32_t nameId = -1;
-	for (size_t i = 0; i < linkCount; i++) {
+	for (int32_t i = 0; i < linkCount; i++) {
 		if (strcmp(link[i].Name, name) == 0) {
 			nameId = i;
 		}
@@ -336,7 +336,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					//Check for highest deep
 					int32_t highestdeep = -1;
 					int32_t highestdeepidx = -1;
-					size_t i;
+					int32_t i;
 					for (i = 1; i < linkcalcCount; i++) {
 						//Get the first highest one
 						if (highestdeep < linkcalc[i].Deep) {
