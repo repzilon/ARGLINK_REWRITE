@@ -1,0 +1,11 @@
+clean:
+	$(MAKE) -C arglinkr clean
+	rm -rf ARGLINK_REWRITE/bin
+	rm -rf ARGLINK_REWRITE/obj
+	rm -rf OOTD/bin
+	rm -rf OOTD/obj
+
+help:
+	@echo "Available targets: clean"
+
+.PHONY: help clean
