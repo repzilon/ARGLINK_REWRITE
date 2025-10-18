@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using CSize = System.Int32;
+using CSize = System.Int32;	// Type alias that OOTD converts to size_t
 
 // ReSharper disable SuggestVarOrType_SimpleTypes
 // ReSharper disable SuggestVarOrType_Elsewhere
@@ -97,7 +97,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 		private static int Search(List<LinkData> link, string name)
 		{
 			int nameId = -1;
-			for (int i = 0; i < link.Count; i++) {
+			for (CSize i = 0; i < link.Count; i++) {
 				if (link[i].Name.Equals(name)) {
 					nameId = i;
 				}
@@ -348,9 +348,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						//All operations have been found, now do the calculations
 						while (linkcalc.Count > 1) {
 							//Check for highest deep
-							int highestdeep    = -1;
-							int highestdeepidx = -1;
-							int i;
+							int   highestdeep    = -1;
+							int   highestdeepidx = -1;
+							CSize i;
 							for (i = 1; i < linkcalc.Count; i++) {
 								//Get the first highest one
 								if (highestdeep < linkcalc[i].Deep) {
