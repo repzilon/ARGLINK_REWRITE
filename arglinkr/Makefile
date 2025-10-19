@@ -44,21 +44,21 @@ CFLAGS_HARDEN := -Wall -Wformat -Wformat=2 -Wconversion -Wimplicit-fallthrough -
 -fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing \
 -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion
 ifneq ($(strip ${DJGPP}),)
-  CFLAGS_GCC := -fstack-clash-protection -Wtrampolines
+  CFLAGS_GCC := -fstack-clash-protection -Wtrampolines -Wno-unknown-pragmas
 else
   ifeq (Linux,$(shell uname))
     CFLAGS_LINUX := -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries
   endif
   CFLAGS_NOTDJGPP := -fstrict-flex-arrays=3 -ftrivial-auto-var-init=zero
   ifeq (gcc,$(CC))
-    CFLAGS_GCC := -march=native -fstack-clash-protection -Wtrampolines -Wbidi-chars=any
+    CFLAGS_GCC := -march=native -fstack-clash-protection -Wtrampolines -Wbidi-chars=any -Wno-unknown-pragmas
   else 
     CC_IS_SYMLINK := $(shell test -L $(CC); echo $$?)
     # test returns a process exit code; 0 is a success (anything else a failure)
     ifeq (0,$(CC_IS_SYMLINK))
       CC_TARGET := $(shell readlink $(CC))
       ifeq (gcc,$(CC_TARGET))
-        CFLAGS_GCC := -march=native -fstack-clash-protection -Wtrampolines -Wbidi-chars=any
+        CFLAGS_GCC := -march=native -fstack-clash-protection -Wtrampolines -Wbidi-chars=any -Wno-unknown-pragmas
       endif
     endif
   endif
