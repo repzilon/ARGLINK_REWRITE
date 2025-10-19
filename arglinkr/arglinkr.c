@@ -264,7 +264,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	}
 }
 
-void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
+LinkData* InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 {
 	do {
 		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData)); if (linktemp == NULL) { puts("ArgLink error: cannot allocate for linktemp of type LinkData*, source code line " STRINGIZE(__LINE__)); exit(70); }
@@ -279,6 +279,8 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
 		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData));if (link == NULL) { puts("ArgLink error: cannot grow list of LinkData named link, source code line " STRINGIZE(__LINE__)); exit(70); }; link[*linkCount - 1] = *linktemp;
 	} while (fgetc(fileSob) == 0);
+	// The return statement is needed to update the reference to link in the C version
+	return link;
 }
 
 void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, size_t* linkCount)
@@ -538,7 +540,7 @@ int main(int argc, char* argv[])
 					}
 
 					// Step 2: Get all extern names and values
-					InputSobStepTwo(fileSob, link, &linkCount);
+					link = InputSobStepTwo(fileSob, link, &linkCount);
 
 					startLink[n] = ftell(fileSob);
 					n++;

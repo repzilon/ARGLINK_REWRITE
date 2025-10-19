@@ -278,7 +278,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 		}
 
-		private static void InputSobStepTwo(BinaryReader fileSob, List<LinkData> link)
+		private static List<LinkData> InputSobStepTwo(BinaryReader fileSob, List<LinkData> link)
 		{
 			do {
 				LinkData   linktemp = new LinkData();
@@ -293,6 +293,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 				link.Add(linktemp);
 			} while (fileSob.ReadByte() == 0);
+			// The return statement is needed to update the reference to link in the C version
+			return link;
 		}
 
 		private static void PerformLink(string sobjFile, BinaryWriter fileOut, long[] startLink, int n, List<LinkData> link)
@@ -348,8 +350,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						//All operations have been found, now do the calculations
 						while (linkcalc.Count > 1) {
 							//Check for highest deep
-							int highestdeep    = -1;
-							int highestdeepidx = -1;
+							int   highestdeep    = -1;
+							int   highestdeepidx = -1;
 							int i;
 							for (i = 1; i < (int)linkcalc.Count; i++) {	// Cast for MSVC
 								//Get the first highest one
@@ -547,7 +549,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							}
 
 							// Step 2: Get all extern names and values
-							InputSobStepTwo(fileSob, link);
+							link = InputSobStepTwo(fileSob, link);
 
 							startLink[n] = fileSob.BaseStream.Position;
 							n++;
