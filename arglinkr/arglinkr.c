@@ -37,6 +37,7 @@ uint8_t s_romType = 0x7D;
 
 bool s_verbose; // = false;
 
+#pragma mark - Utility methods
 void OutputLogo()
 {
 	puts("ArgLink Re-Rewrite\t\t\t(c) 2025 Repzilon\n"
@@ -146,6 +147,7 @@ void Recopy(FILE* source, size_t size, FILE* destination, int32_t offset)
 	fwrite(buffer, sizeof(uint8_t), size, destination);
 }
 
+#pragma mark - Verbose output
 void LuigiOut(char* text)
 {
 	if (s_verbose) {
@@ -160,6 +162,7 @@ void LuigiFormat(char* format, ...)
 	}
 }
 
+#pragma mark - Command line parsing
 bool IsSimpleFlag(char flag, char* argument)
 {
 	if (strlen(argument) == 2) {
@@ -237,6 +240,7 @@ char* AppendExtensionIfAbsent(char* argSfxObjectFile)
 	}
 }
 
+#pragma mark - Linking phases
 void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 {
 	int64_t start = ftell(fileSob);
@@ -438,6 +442,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 	fclose(fileSob); free(fileSobBuffer);
 }
 
+#pragma mark - Main entry point
 int main(int argc, char* argv[])
 {
 	// TODO : get, split and parse ALFLAGS environment variable

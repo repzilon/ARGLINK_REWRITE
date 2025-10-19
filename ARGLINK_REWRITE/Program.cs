@@ -50,6 +50,7 @@ namespace ARGLINK_REWRITE
 		private static bool s_verbose; // = false;
 		// ReSharper restore InconsistentNaming
 
+		#region Utility methods
 		private static void OutputLogo()
 		{
 			Console.WriteLine(@"ArgLink Re-Rewrite			(c) 2025 Repzilon
@@ -156,7 +157,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			destination.Seek(offset, SeekOrigin.Begin);
 			destination.Write(buffer, 0, size);
 		}
+		#endregion
 
+		#region Verbose output
 		private static void LuigiOut(string text)
 		{
 			if (s_verbose) {
@@ -170,7 +173,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				Console.Error.WriteLine(format, ellipsis);
 			}
 		}
+		#endregion
 
+		#region Command line parsing
 		private static bool IsSimpleFlag(char flag, string argument)
 		{
 			if (argument.Length == 2) {
@@ -250,7 +255,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				return argSfxObjectFile;
 			}
 		}
+		#endregion
 
+		#region Linking phases
 		private static void InputSobStepOne(int i, BinaryWriter fileOut, BinaryReader fileSob)
 		{
 			long  start  = fileSob.BaseStream.Position;
@@ -446,7 +453,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 			fileSob.Close();
 		}
+		#endregion
 
+		#region Main entry point
 		private static int Main(string[] args)
 		{
 			// TODO : get, split and parse ALFLAGS environment variable
@@ -580,5 +589,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				return (int)BSDExitCodes.Success;
 			}
 		}
+		#endregion
 	}
 }

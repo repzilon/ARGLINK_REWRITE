@@ -91,6 +91,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 					// Translate C# code to C
 					var strCleaned = ExtractBody(strAllSource, "namespace", out var strIndent);
+					strCleaned = RegionsToObjectiveCPragmaMarks(strCleaned);
 					strCleaned = TearDownPartition(strCleaned, "class", strIndent);
 					strCleaned = RemoveAnyKeyword(strCleaned, "internal", "private", "public", "protected");
 					strCleaned = RemoveAnyKeyword(strCleaned, "static");
@@ -169,6 +170,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static MatchCollection FindStringLiterals(string extract)
 		{
 			return Regex.Matches(extract, @"(@?)[""](.*?)[""]", RegexOptions.Singleline);
+		}
+
+		private static string RegionsToObjectiveCPragmaMarks(string sourceCode)
+		{
+			sourceCode = Regex.Replace(sourceCode, @"(?:\t| )*#endregion.*\r?\n", "");
+			return Regex.Replace(sourceCode, @"#region (.*)", "#pragma mark - $1");
 		}
 
 		#region RemoveAnyKeyword
