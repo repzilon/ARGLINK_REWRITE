@@ -102,7 +102,7 @@ char* GetNameChars(FILE* fileSob, size_t* nametempCount)
 	while (check != 0) {
 		{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { check = (char)whatRead; } };
 		if (check != 0) {
-			(*nametempCount)++; nametemp = (char*)realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check;
+			(*nametempCount)++; nametemp = (char*)realloc(nametemp, *nametempCount * sizeof(char));if (nametemp == NULL) { puts("ArgLink error: cannot grow list of char named nametemp, source code line " STRINGIZE(__LINE__)); exit(70); }; nametemp[*nametempCount - 1] = check;
 		}
 	}
 
@@ -124,7 +124,7 @@ bool SOBJWasRead(FILE* fileSob)
 
 Calculation* InitCalculation(int32_t deep, int32_t priority, int32_t operation, int32_t value)
 {
-	Calculation* calctemp = (Calculation*)calloc(1, sizeof(Calculation));
+	Calculation* calctemp = (Calculation*)calloc(1, sizeof(Calculation)); if (calctemp == NULL) { puts("ArgLink error: cannot allocate for calctemp of type Calculation*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	calctemp->Deep = deep;
 	calctemp->Priority = priority;
 	calctemp->Operation = operation;
@@ -140,7 +140,7 @@ int32_t ReadLEInt32(FILE* fileSob)
 
 void Recopy(FILE* source, size_t size, FILE* destination, int32_t offset)
 {
-	uint8_t* buffer = (uint8_t*)calloc((size_t)size, sizeof(uint8_t));
+	uint8_t* buffer = (uint8_t*)calloc((size_t)size, sizeof(uint8_t)); if (buffer == NULL) { puts("ArgLink error: cannot allocate for buffer of type uint8_t*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	fread(buffer, sizeof(uint8_t), size, source);
 	fseek(destination, offset, SEEK_SET);
 	fwrite(buffer, sizeof(uint8_t), size, destination);
@@ -258,7 +258,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 		//Get file path
 		char* filepath = GetName(fileSob);
 		LuigiFormat("--Open External File: %s\n", filepath);
-		FILE* fileExt = fopen(filepath, "rb"); size_t fileExtZone = (size_t)(s_ioBuffersKiB * 1024); char* fileExtBuffer = (fileExtZone > 0) ? (char*)calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
+		FILE* fileExt = fopen(filepath, "rb"); if (fileExt == NULL) { puts("ArgLink error: cannot open filepath in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileExtZone = (size_t)(s_ioBuffersKiB * 1024); char* fileExtBuffer = (fileExtZone > 0) ? (char*)calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
 		Recopy(fileExt, size, fileOut, offset);
 		fclose(fileExt); free(fileExtBuffer);
 	}
@@ -267,7 +267,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 {
 	do {
-		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData));
+		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData)); if (linktemp == NULL) { puts("ArgLink error: cannot allocate for linktemp of type LinkData*, source code line " STRINGIZE(__LINE__)); exit(70); }
 		size_t nametempCount; char* nametemp = GetNameChars(fileSob, &nametempCount);
 
 		if (nametempCount <= 0) {
@@ -277,13 +277,13 @@ void InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 		char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 		linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
 		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
-		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData)); link[*linkCount - 1] = *linktemp;
+		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData));if (link == NULL) { puts("ArgLink error: cannot grow list of LinkData named link, source code line " STRINGIZE(__LINE__)); exit(70); }; link[*linkCount - 1] = *linktemp;
 	} while (fgetc(fileSob) == 0);
 }
 
 void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, size_t* linkCount)
 {
-	FILE* fileSob = fopen(sobjFile, "rb"); size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
+	FILE* fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
 	LuigiFormat("Open %s\n", sobjFile);
 	fseek(fileSob, 0, SEEK_SET);
@@ -299,7 +299,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 
 				Calculation* linkcalc = NULL; size_t linkcalcCount = 0;
 				Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
-				linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
+				linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation));if (linkcalc == NULL) { puts("ArgLink error: cannot grow list of Calculation named linkcalc, source code line " STRINGIZE(__LINE__)); exit(70); }; linkcalc[linkcalcCount - 1] = *calctemp;
 
 				LuigiFormat("--%s : %X\n", name, link[nameId].Value);
 
@@ -328,7 +328,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 
 					{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck1 = (uint8_t)whatRead; } };
 					{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck2 = (uint8_t)whatRead; } };
-					linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); linkcalc[linkcalcCount - 1] = *calctemp;
+					linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation));if (linkcalc == NULL) { puts("ArgLink error: cannot grow list of Calculation named linkcalc, source code line " STRINGIZE(__LINE__)); exit(70); }; linkcalc[linkcalcCount - 1] = *calctemp;
 				}
 
 				//All operations have been found, now do the calculations
@@ -403,7 +403,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 								memmove(&(linkcalc[highestpriidx]), &(linkcalc[highestpriidx + 1]), after * sizeof(Calculation));
 							}
 							linkcalcCount--;
-							linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation));
+							linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation)); if (linkcalc == NULL) { puts("ArgLink error: cannot trim list of Calculation named linkcalc, source code line " STRINGIZE(__LINE__)); exit(70); }
 				}
 
 				//And then put the data in
@@ -444,7 +444,7 @@ int main(int argc, char* argv[])
 	// Parse command line
 	// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 	int32_t idx;
-	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool));
+	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool)); if (areSobs == NULL) { puts("ArgLink error: cannot allocate for areSobs of type bool*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
 	char* romFile = NULL;
@@ -500,7 +500,7 @@ int main(int argc, char* argv[])
 		return (int32_t)BadCLIUsage;
 	} else {
 		FILE* fileSob;
-		FILE* fileOut = fopen(romFile, "wb"); size_t fileOutZone = (size_t)(s_ioBuffersKiB * 1024); char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
+		FILE* fileOut = fopen(romFile, "wb"); if (fileOut == NULL) { puts("ArgLink error: cannot open romFile in Write mode, source code line " STRINGIZE(__LINE__)); exit(73); }; size_t fileOutZone = (size_t)(s_ioBuffersKiB * 1024); char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
 		// Fill Output file to 1 MiB
 		puts("Constructing ROM Image.");
 		fseek(fileOut, 0, SEEK_SET);
@@ -511,7 +511,7 @@ int main(int argc, char* argv[])
 		// Steps 1 & 2: Input all data and list all links
 		puts("Processing Externals.");
 		LinkData* link = NULL; size_t linkCount = 0;
-		int64_t* startLink = (int64_t*)calloc((size_t)totalSobs, sizeof(int64_t));
+		int64_t* startLink = (int64_t*)calloc((size_t)totalSobs, sizeof(int64_t)); if (startLink == NULL) { puts("ArgLink error: cannot allocate for startLink of type int64_t*, source code line " STRINGIZE(__LINE__)); exit(70); }
 		int32_t firstSob = -1;
 		int32_t n = 0;
 		char* sobjFile;
@@ -523,7 +523,7 @@ int main(int argc, char* argv[])
 
 				//Check if SOB file is indeed a SOB file
 				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
-				fileSob = fopen(sobjFile, "rb"); size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
+				fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {

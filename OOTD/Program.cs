@@ -13,6 +13,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 	{
 		Success = 0,
 		BadCLIUsage = 64,
+		UnreadableInputFile = 66,
 		InternalError = 70,
 		CannotCreateOutputFile = 73,
 		BadFileIO = 74,
@@ -358,7 +359,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			var g           = m.Groups;
 			var strArgument = ReformatArgument(g[2].Value, false);
-			// Note: strArgument ends with );
+			// Note: strArgument ends with «);»
 			return QuickFormat(
 				"int nbytes = snprintf(NULL, 0, {1} if (nbytes < 0) { " +
 				"puts(\"ArgLink error: cannot evaluate length with snprintf, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { " +
@@ -419,7 +420,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		#region TranslateFileInputOutput
 		private static string TranslateFileInputOutput(string translating)
 		{
-			translating = Regex.Replace(translating, @"new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+new FILE\*\(File.Open([A-Za-z0-9_]+)[(](.*)[)][)]", ReplaceOpenCall);
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+new FILE\*\(new FileStream[(](.+?),\s+FileMode\.[A-Za-z]+,\s+FileAccess\.([A-Za-z]+),\s+FileShare\.[A-Za-z]+,\s+(.+?)[)][)]", ReplaceBufferedOpen);
 
 			translating = translating.Replace("SeekOrigin.Begin", "SEEK_SET").Replace("SeekOrigin.Current", "SEEK_CUR")
@@ -496,16 +497,27 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReplaceOpenCall(Match m)
 		{
-			var g = m.Groups;
-			return QuickFormat("fopen({0}, \"{1}\")", g[2].Value, CFileOpenMode(g[1].Value));
+			var g = m.Groups;	// handle, access, filePath
+			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ "+
+								  "puts(\"ArgLink error: cannot open {1} in {2} mode, source code line \" STRINGIZE(__LINE__)); exit({5}); }}",
+				g[1].Value, g[3].Value, g[2].Value, "");
 		}
 
 		private static string ReplaceBufferedOpen(Match m)
 		{
-			var g = m.Groups;
-			return String.Format(CultureInfo.InvariantCulture,
-				"{0} = fopen({1}, \"{2}\"); size_t {0}Zone = (size_t)({3}); char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
-				g[1].Value, g[2].Value, CFileOpenMode(g[3].Value), g[4].Value);
+			var g = m.Groups;	// handle, filePath, access, bufferSize
+			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ "+
+								  "puts(\"ArgLink error: cannot open {1} in {2} mode, source code line \" STRINGIZE(__LINE__)); exit({5}); }}; " +
+								  "size_t {0}Zone = (size_t)({3}); char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
+				g[1].Value, g[2].Value, g[3].Value, g[4].Value);
+		}
+
+		private static string ReplaceAnyOpen(string format, string handle, string filePath, string access,
+		string bufferExpression)
+		{
+			return String.Format(CultureInfo.InvariantCulture, format,
+				handle, filePath, access, bufferExpression, CFileOpenMode(access),
+				access == "Write" ? (byte)BSDExitCodes.CannotCreateOutputFile : (byte)BSDExitCodes.UnreadableInputFile);
 		}
 
 		private static string ReplaceSeekCall(Match m)
@@ -528,17 +540,27 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ConvertInit(Match m)
 		{
-			var type     = m.Groups[1].Value;
-			var variable = m.Groups[2].Value;
-			var ctor     = m.Groups[3].Value;
+			const byte kAllocFailedCode = (byte)BSDExitCodes.InternalError;
+			const string kAllocFailed =
+				" if ({1} == NULL) {{ puts(\"ArgLink error: cannot allocate for {1} of type {0}*, source code line \" STRINGIZE(__LINE__)); exit({2}); }}";
+
+			var g           = m.Groups;
+			var type        = g[1].Value;
+			var variable    = g[2].Value;
+			var ctor        = g[3].Value;
+			var ciInvariant = CultureInfo.InvariantCulture;
 			if (variable.EndsWith("[]", StringComparison.Ordinal)) { // array
 				var bracket = ctor.IndexOf('[');
 				var count   = ctor.Substring(bracket + 1, ctor.Length - bracket - 2);
-				return QuickFormat("{0}* {1} = ({0}*)calloc((size_t){2}, sizeof({0}));", type, variable.Replace("[]", ""), count);
+				return String.Format(ciInvariant,
+					"{0}* {1} = ({0}*)calloc((size_t){3}, sizeof({0}));" + kAllocFailed,
+					type, variable.Replace("[]", ""), kAllocFailedCode, count);
 			} else if (ctor.StartsWith("List<", StringComparison.Ordinal)) {
 				return QuickFormat("{0} {1} = NULL; size_t {1}Count = 0;", type, variable);
 			} else if (ctor.EndsWith("()", StringComparison.Ordinal)) { // struct
-				return QuickFormat("{0}* {1} = ({0}*)calloc(1, sizeof({0}));", type, variable);
+				return String.Format(ciInvariant,
+					"{0}* {1} = ({0}*)calloc(1, sizeof({0}));" + kAllocFailed,
+					type, variable, kAllocFailedCode);
 			} else {
 				return m.Value; // i.e. no change
 			}
@@ -638,8 +660,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return String.Format(CultureInfo.InvariantCulture,
 				"size_t after = {1}Count - 1 - {2};{0}if (after > 0) {{{0}" +
 				"\tmemmove(&({1}[{2}]), &({1}[{2} + 1]), after * sizeof({3}));{0}" +
-				"}}{0}{1}Count--;{0}{1} = ({3}*)realloc({1}, {1}Count * sizeof({3}));",
-				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType);
+				"}}{0}{1}Count--;{0}{1} = ({3}*)realloc({1}, {1}Count * sizeof({3})); " +
+				"if ({1} == NULL) {{ puts(\"ArgLink error: cannot trim list of {3} named {1}, source code line \" STRINGIZE(__LINE__)); exit({4}); }}",
+				Environment.NewLine + "\t\t\t\t\t\t\t", list, at, listType, (byte)BSDExitCodes.InternalError);
 		}
 
 		private static Match LastMatchBefore(int limit, string haystack, string pattern)
@@ -671,10 +694,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			}
 
 			// (*nametempCount)++; nametemp = realloc(nametemp, *nametempCount * sizeof(char)); nametemp[*nametempCount - 1] = check
+			const string kReallocFailed =
+				"if ({0} == NULL) {{ puts(\"ArgLink error: cannot grow list of {2} named {0}, source code line \" STRINGIZE(__LINE__)); exit({4}); }};";
 			return String.Format(CultureInfo.InvariantCulture, countType.EndsWith("*", StringComparison.Ordinal) ? // is count is a passed pointer?
-					"(*{0}Count)++; {0} = ({2}*)realloc({0}, *{0}Count * sizeof({2})); {0}[*{0}Count - 1] = {3}{1}"
-					: "{0}Count++; {0} = ({2}*)realloc({0}, {0}Count * sizeof({2})); {0}[{0}Count - 1] = {3}{1}",
-				list, item, listType, listType == "char" ? "" : "*");
+					"(*{0}Count)++; {0} = ({2}*)realloc({0}, *{0}Count * sizeof({2}));" + kReallocFailed + " {0}[*{0}Count - 1] = {3}{1}"
+					: "{0}Count++; {0} = ({2}*)realloc({0}, {0}Count * sizeof({2}));" + kReallocFailed + " {0}[{0}Count - 1] = {3}{1}",
+				list, item, listType, listType == "char" ? "" : "*", (byte)BSDExitCodes.InternalError);
 		}
 
 		private static string TranslateStringFromCharArray(Match m)
