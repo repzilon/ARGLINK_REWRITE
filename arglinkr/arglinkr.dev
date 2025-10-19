@@ -10,7 +10,7 @@ Libs=
 PrivateResource=
 ResourceIncludes=
 MakeIncludes=
-Compiler=-Wall -Wformat_@@_-Wformat=2_@@_-Wconversion_@@_-Wimplicit-fallthrough_@@_-U_FORTIFY_SOURCE_@@_-D_FORTIFY_SOURCE=3_@@_-fno-delete-null-pointer-checks_@@_-fno-strict-aliasing_@@_
+Compiler=-Wall -Wformat_@@_-Wformat=2_@@_-Wconversion_@@_-Wimplicit-fallthrough_@@_-D_FORTIFY_SOURCE=3_@@_-fno-delete-null-pointer-checks_@@_-fno-strict-aliasing_@@_-D__STDC_FORMAT_MACROS_@@_
 CppCompiler=
 Linker=
 IsCpp=0

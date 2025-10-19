@@ -291,3 +291,6 @@ __pycache__/
 .DS_Store
 
 arglinkr/arglinkr
+arglinkr/arglinkr.exe
+arglinkr/arglinkr.EXE
+*.bak
