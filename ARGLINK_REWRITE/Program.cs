@@ -75,6 +75,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** Re-rewrite Added Options are:
 ** -Q		- Turn off banner on startup.
 ** -V		- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.
+** -X<file>	- Export public symbols to a text file, one per line
 
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
@@ -100,7 +101,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 		{
 			int nameId = -1;
 			// ReSharper disable once RedundantCast
-			for (int i = 0; i < (int)link.Count; i++) {	// Cast for MSVC
+			for (int i = 0; i < (int)link.Count; i++) { // Cast for MSVC
 				if (link[i].Name.Equals(name)) {
 					nameId = i;
 				}
@@ -343,8 +344,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						byte calccheck1 = fileSob.ReadByte();
 						byte calccheck2 = fileSob.ReadByte();
 						while (calccheck1 != 0 && calccheck2 != 0) {
-							// Note: ReadInt32() introduces a side effect and must be called
-							// under any circumstances
+							// Note: ReadInt32() introduces a side effect and must be called under any circumstances
 							calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
 								calccheck2, fileSob.ReadInt32());
 							if (calccheck1 > 0x80) {
@@ -359,11 +359,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 						//All operations have been found, now do the calculations
 						while (linkcalc.Count > 1) {
 							//Check for highest deep
-							int   highestdeep    = -1;
-							int   highestdeepidx = -1;
+							int highestdeep    = -1;
+							int highestdeepidx = -1;
 							int i;
 							// ReSharper disable once RedundantCast
-							for (i = 1; i < (int)linkcalc.Count; i++) {	// Cast for MSVC
+							for (i = 1; i < (int)linkcalc.Count; i++) { // Cast for MSVC
 								//Get the first highest one
 								if (highestdeep < linkcalc[i].Deep) {
 									highestdeep    = linkcalc[i].Deep;
@@ -375,7 +375,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							int highestpri    = -1;
 							int highestpriidx = -1;
 							// ReSharper disable once RedundantCast
-							for (i = highestdeepidx; i < (int)linkcalc.Count; i++) {	// Cast for MSVC
+							for (i = highestdeepidx; i < (int)linkcalc.Count; i++) { // Cast for MSVC
 								//Get the first highest one
 								if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
 									break;
@@ -472,6 +472,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			int    totalSobs = args.Length;
 			bool   showLogo  = true;
 			string romFile   = null;
+			string pubsPath  = null;
 			string passed;
 			byte   parsedU8;
 			for (idx = 0; idx < args.Length; idx++) {
@@ -499,6 +500,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					} else {
 						Console.WriteLine("ArgLink warning: default extension override must start with a dot.");
 					}
+
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsStringFlag('X', args[idx], out passed)) {
+					pubsPath     = passed;
 					areSobs[idx] = false;
 					totalSobs--;
 				} else {
@@ -590,6 +596,15 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				Console.WriteLine("| Publics: {0}\tFiles: {1}\tROM Size: {2}KiB |", link.Count, totalSobs, finalSize);
 
 				fileOut.Close();
+
+				if (!String.IsNullOrEmpty(pubsPath)) {
+					StreamWriter filePubs = new StreamWriter(new FileStream(pubsPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
+					// ReSharper disable once RedundantCast
+					for (idx = 0; idx < (int)link.Count; idx++) { // Cast for MSVC
+						filePubs.WriteLine("{0}", link[idx].Name);
+					}
+					filePubs.Close();
+				}
 
 				return (int)BSDExitCodes.Success;
 			}

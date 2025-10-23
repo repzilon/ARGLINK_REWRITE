@@ -62,6 +62,7 @@ void OutputUsage()
 "** Re-rewrite Added Options are:\n"
 "** -Q\t\t- Turn off banner on startup.\n"
 "** -V\t\t- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.\n"
+"** -X<file>\t- Export public symbols to a text file, one per line\n"
 "\n"
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
@@ -87,7 +88,7 @@ void OutputUsage()
 int32_t Search(LinkData* link, size_t linkCount, char* name)
 {
 	int32_t nameId = -1;
-	for (int32_t i = 0; i < (int32_t)linkCount; i++) {	// Cast for MSVC
+	for (int32_t i = 0; i < (int32_t)linkCount; i++) { // Cast for MSVC
 		if (strcmp(link[i].Name, name) == 0) {
 			nameId = i;
 		}
@@ -324,8 +325,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 				uint8_t calccheck1; { int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck1 = (uint8_t)whatRead; } };
 				uint8_t calccheck2; { int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck2 = (uint8_t)whatRead; } };
 				while (calccheck1 != 0 && calccheck2 != 0) {
-					// Note: ReadInt32() introduces a side effect and must be called
-					// under any circumstances
+					// Note: ReadInt32() introduces a side effect and must be called under any circumstances
 					calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
 						calccheck2, ReadLEInt32(fileSob));
 					if (calccheck1 > 0x80) {
@@ -343,7 +343,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					int32_t highestdeep = -1;
 					int32_t highestdeepidx = -1;
 					int32_t i;
-					for (i = 1; i < (int32_t)linkcalcCount; i++) {	// Cast for MSVC
+					for (i = 1; i < (int32_t)linkcalcCount; i++) { // Cast for MSVC
 						//Get the first highest one
 						if (highestdeep < linkcalc[i].Deep) {
 							highestdeep = linkcalc[i].Deep;
@@ -354,7 +354,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					//Check for highest priority
 					int32_t highestpri = -1;
 					int32_t highestpriidx = -1;
-					for (i = highestdeepidx; i < (int32_t)linkcalcCount; i++) {	// Cast for MSVC
+					for (i = highestdeepidx; i < (int32_t)linkcalcCount; i++) { // Cast for MSVC
 						//Get the first highest one
 						if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
 							break;
@@ -455,6 +455,7 @@ int main(int argc, char* argv[])
 	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
 	char* romFile = NULL;
+	char* pubsPath = NULL;
 	char* passed;
 	uint8_t parsedU8;
 	for (idx = 0; idx < (argc - 1); idx++) {
@@ -481,6 +482,11 @@ int main(int argc, char* argv[])
 			} else {
 				puts("ArgLink warning: default extension override must start with a dot.");
 			}
+
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsStringFlag('X', argv[1 + idx], &passed)) {
+			pubsPath = passed;
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {
@@ -572,6 +578,14 @@ int main(int argc, char* argv[])
 		printf("| Publics: %" PRIuPTR "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", linkCount, totalSobs, finalSize);
 
 		fclose(fileOut); free(fileOutBuffer);
+
+		if (!((pubsPath == NULL) || (strlen(pubsPath) < 1))) {
+			FILE* filePubs = fopen(pubsPath, "wb"); if (filePubs == NULL) { puts("ArgLink error: cannot open pubsPath in Write mode, source code line " STRINGIZE(__LINE__)); exit(73); }; size_t filePubsZone = (size_t)(s_ioBuffersKiB * 1024); char* filePubsBuffer = (filePubsZone > 0) ? (char*)calloc(filePubsZone, sizeof(char)) : NULL; setvbuf(filePubs, filePubsBuffer, filePubsBuffer ? _IOFBF : _IONBF, filePubsZone);
+			for (idx = 0; idx < (int32_t)linkCount; idx++) { // Cast for MSVC
+				fprintf(filePubs, "%s\n", link[idx].Name);
+			}
+			fclose(filePubs); free(filePubsBuffer);
+		}
 
 		return (int32_t)Success;
 	}

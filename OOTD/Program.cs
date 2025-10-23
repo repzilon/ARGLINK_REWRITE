@@ -30,7 +30,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static readonly Dictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
 			{ "string", "char*" }, { "ushort", "uint16_t" }, { "CSize", "size_t" }, { "int", "int32_t" },
 			{ "long", "int64_t" }, { "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
-			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" }
+			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" },
+			{ "StreamWriter", "FILE*" }
 		};
 
 		private static void OutputLogo()
@@ -233,7 +234,6 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		}
 		#endregion
 
-
 		private static string ReplaceDataTypeOfVariables(string translating)
 		{
 			foreach (var kvp in s_dicTypeMapping) {
@@ -259,7 +259,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			// Function signature
 			// "$1* $2"
 			var lstOutVars = new List<Match>();
-			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)", m => ConvertOutSignature(m, lstOutVars));
+			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)",
+				m => ConvertOutSignature(m, lstOutVars));
 			// Usage
 			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_]+)", "&$1");
 			// Value assignment
@@ -318,9 +319,10 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReplaceSingleConsoleCall(Match m)
 		{
-			var blnStdError = !String.IsNullOrEmpty(m.Groups[1].Value);
-			var blnNewLine  = !String.IsNullOrEmpty(m.Groups[2].Value);
-			var strArgument = m.Groups[3].Value;
+			var g           = m.Groups;
+			var blnStdError = !String.IsNullOrEmpty(g[1].Value);
+			var blnNewLine  = !String.IsNullOrEmpty(g[2].Value);
+			var strArgument = g[3].Value;
 			var mtcEllipsis = Regex.Match(strArgument, @"[(]?([A-Za-z0-9_]+).*\bellipsis\b");
 
 			if (mtcEllipsis.Success) {
@@ -371,7 +373,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				"int nbytes = snprintf(NULL, 0, {1} if (nbytes < 0) { " +
 				"puts(\"ArgLink error: cannot evaluate length with snprintf, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { " +
 				"nbytes++; {0} = (char*)calloc((size_t)nbytes, sizeof(char)); if ({0} == NULL) { " +
-				"puts(\"ArgLink error: cannot allocate memory, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { "+
+				"puts(\"ArgLink error: cannot allocate memory, source code line \" STRINGIZE(__LINE__)); exit({2}); } else { " +
 				"snprintf({0}, (size_t)nbytes, {1} } }",
 				g[1].Value, strArgument.Trim(), ((byte)BSDExitCodes.InternalError).ToString());
 		}
@@ -410,13 +412,13 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					return "%c";
 				} else if ((item == "min") || (item == "max")) { // uint8_t
 					return "%hhu";
-				} else if (item == "finalSize") { // int64_t
-					return "%\" PRId64 \""; // "%lld";
+				} else if (item == "finalSize") {                                            // int64_t
+					return "%\" PRId64 \"";                                                  // "%lld";
 				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) { // size_t
-					return "%\" PRIuPTR \""; // "%u";
+					return "%\" PRIuPTR \"";                                                 // "%u";
 				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
 						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) { // int32_t
-					return "%\" PRId32 \""; // "%d";
+					return "%\" PRId32 \"";                                                   // "%d";
 				} else {
 					return "%s";
 				}
@@ -454,6 +456,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.(Read|Write)[(](.*?), 0, (.*)[)];", "f$2($3, sizeof(uint8_t), $4, $1);");
 			translating = translating.Replace("fRead(", "fread(").Replace("fWrite(", "fwrite(");
+
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Write(Line)?[(](.*)", ReplaceWriteTextFile);
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Close\(\)", "fclose($1); free($1Buffer)");
 
@@ -504,16 +508,16 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReplaceOpenCall(Match m)
 		{
-			var g = m.Groups;	// handle, access, filePath
-			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ "+
+			var g = m.Groups; // handle, access, filePath
+			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ " +
 								  "puts(\"ArgLink error: cannot open {1} in {2} mode, source code line \" STRINGIZE(__LINE__)); exit({5}); }}",
 				g[1].Value, g[3].Value, g[2].Value, "");
 		}
 
 		private static string ReplaceBufferedOpen(Match m)
 		{
-			var g = m.Groups;	// handle, filePath, access, bufferSize
-			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ "+
+			var g = m.Groups; // handle, filePath, access, bufferSize
+			return ReplaceAnyOpen("{0} = fopen({1}, \"{4}\"); if ({0} == NULL) {{ " +
 								  "puts(\"ArgLink error: cannot open {1} in {2} mode, source code line \" STRINGIZE(__LINE__)); exit({5}); }}; " +
 								  "size_t {0}Zone = (size_t)({3}); char* {0}Buffer = ({0}Zone > 0) ? (char*)calloc({0}Zone, sizeof(char)) : NULL; setvbuf({0}, {0}Buffer, {0}Buffer ? _IOFBF : _IONBF, {0}Zone)",
 				g[1].Value, g[2].Value, g[3].Value, g[4].Value);
@@ -530,6 +534,13 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ReplaceSeekCall(Match m)
 		{
 			return "fseek(" + m.Groups[1].Value.Replace(".BaseStream", "") + ", " + m.Groups[2].Value + ",";
+		}
+
+		private static string ReplaceWriteTextFile(Match m)
+		{
+			var g = m.Groups;
+			return QuickFormat("fprintf({0}, {1}", g[1].Value,
+				ReformatArgument(g[3].Value, !String.IsNullOrEmpty(g[2].Value)));
 		}
 		#endregion
 
