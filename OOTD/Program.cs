@@ -391,36 +391,48 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReformatArgumentCore(string extracted, bool addNewLine)
 		{
-			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_.]+)");
+			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_.\]\[""]+)");
 			var strReformatted = Regex.Replace(extracted, @"[{](\d+)(.*?)[}]",
 				m2 => ConvertFormatSpecifier(m2, mtcItems));
 			if (addNewLine && strReformatted.Trim().EndsWith(");", StringComparison.Ordinal)) {
-				strReformatted = strReformatted.Replace("\",", "\\n\",");
+				// Replace only the first ending quote, not all ending quotes
+				var firstEndQuote = strReformatted.IndexOf("\",", StringComparison.Ordinal);
+				strReformatted = strReformatted.Substring(0, firstEndQuote) + "\\n\"," +
+								 strReformatted.Substring(firstEndQuote + 2);
 			}
 			return strReformatted;
 		}
 
+		private static bool ContainsText(string haystack, string needle)
+		{
+			return haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+		}
+
 		private static string ConvertFormatSpecifier(Match m2, MatchCollection itemsToFormat)
 		{
-			// Very rough but works for now
-			if (m2.Groups[2].Value == ":X") {
-				return "%X";
+			// Rough but works for now
+			var   g  = m2.Groups;
+			var   g2 = g[2].Value;
+			short width;
+			if (g2.EndsWith(":X")) {
+				return g2.StartsWith(",") && Int16.TryParse(g2.Substring(1, g2.Length - 3), out width)
+					? "%" + width + "X" : "%X";
 			} else {
-				var position = Byte.Parse(m2.Groups[1].Value);
+				var position = Byte.Parse(g[1].Value);
 				var item     = itemsToFormat[position].Groups[1].Value;
 				if (item == "flag") { // char
 					return "%c";
 				} else if ((item == "min") || (item == "max")) { // uint8_t
 					return "%hhu";
-				} else if (item == "finalSize") {                                            // int64_t
-					return "%\" PRId64 \"";                                                  // "%lld";
-				} else if (item.IndexOf("count", StringComparison.OrdinalIgnoreCase) >= 0) { // size_t
-					return "%\" PRIuPTR \"";                                                 // "%u";
-				} else if ((item.IndexOf("total", StringComparison.OrdinalIgnoreCase) >= 0) ||
-						   (item.IndexOf("size", StringComparison.OrdinalIgnoreCase) >= 0)) { // int32_t
-					return "%\" PRId32 \"";                                                   // "%d";
+				} else if (item == "finalSize") {         // int64_t
+					return "%\" PRId64 \"";               // "%lld";
+				} else if (ContainsText(item, "count")) { // size_t
+					return "%\" PRIuPTR \"";              // "%u";
+				} else if (ContainsText(item, "total") ||
+						   ContainsText(item, "size")) { // int32_t
+					return "%\" PRId32 \"";              // "%d";
 				} else {
-					return "%s";
+					return g2.StartsWith(",") && Int16.TryParse(g2.Substring(1), out width) ? "%" + width + "s" : "%s";
 				}
 			}
 		}
@@ -662,6 +674,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 			translating = Regex.Replace(translating, @"return Path\.GetExtension[(]([A-Za-z0-9_]+)[)]", "char* dot = strrchr($1, '.'); return (!dot || dot == $1) ? NULL : dot");
 
+			translating = Regex.Replace(translating,
+				@"([A-Za-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)[.]Replace[(]'(.+?)',\s*'(.+?)'[)]", InPlaceCharReplace);
+
 			return translating;
 		}
 
@@ -753,6 +768,15 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			} else {
 				throw new NotSupportedException();
 			}
+		}
+
+		private static string InPlaceCharReplace(Match m)
+		{
+			var g      = m.Groups;
+			var source = g[2].Value;
+			return g[1].Value == source ? QuickFormat(
+				"for (char* current_pos; (current_pos = strchr({0}, '{1}')) != NULL; *current_pos = '{2}')",
+				source, g[3].Value, g[4].Value) : m.Value;
 		}
 		#endregion
 

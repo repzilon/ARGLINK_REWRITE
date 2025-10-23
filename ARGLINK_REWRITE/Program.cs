@@ -19,6 +19,7 @@ namespace ARGLINK_REWRITE
 	internal struct LinkData
 	{
 		public string Name;
+		public string Origin;
 		public int Value;
 	}
 
@@ -71,6 +72,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
 ** -E<.ext>	- Change default file extension, default = '.SOB'.
 ** -O<romfile>	- Output a ROM file.
+** -S		- Display all public symbols.
 
 ** Re-rewrite Added Options are:
 ** -Q		- Turn off banner on startup.
@@ -90,7 +92,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -N		- Download to Nintendo Emulation system.
 ** -P<addr>	- Set Printer port address (in hex), default = 0x378.
 ** -R		- Display ROM block information.
-** -S		- Display all public symbols.
 ** -T<type>	- Set ROM type (in hex), default = 0x7D.
 ** -W<prefix>	- Set prefix (Work directory) for object files.
 ** -Y		- Use secondary ADS backplane CIC.
@@ -281,6 +282,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				//Get file path
 				string filepath = GetName(fileSob);
+				// POSIX requires / as directory separator, Windows and DJGPP tolerate it
+				filepath = filepath.Replace('\\', '/');
 				LuigiFormat("--Open External File: {0}", filepath);
 				BinaryReader fileExt = new BinaryReader(new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 				Recopy(fileExt, size, fileOut, offset);
@@ -288,7 +291,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 		}
 
-		private static List<LinkData> InputSobStepTwo(BinaryReader fileSob, List<LinkData> link)
+		private static List<LinkData> InputSobStepTwo(string sobjName, BinaryReader fileSob, List<LinkData> link)
 		{
 			do {
 				LinkData   linktemp = new LinkData();
@@ -298,8 +301,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					break;
 				}
 
-				linktemp.Name  = new String(nametemp.ToArray());
-				linktemp.Value = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
+				linktemp.Name   = new String(nametemp.ToArray());
+				linktemp.Value  = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
+				linktemp.Origin = sobjName;
 				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
 				link.Add(linktemp);
 			} while (fileSob.ReadByte() == 0);
@@ -468,11 +472,12 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			// Parse command line
 			// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 			int    idx;
-			bool[] areSobs   = new bool[args.Length];
-			int    totalSobs = args.Length;
-			bool   showLogo  = true;
-			string romFile   = null;
-			string pubsPath  = null;
+			bool[] areSobs     = new bool[args.Length];
+			int    totalSobs   = args.Length;
+			bool   showLogo    = true;
+			bool   showPublics = false;
+			string romFile     = null;
+			string pubsPath    = null;
 			string passed;
 			byte   parsedU8;
 			for (idx = 0; idx < args.Length; idx++) {
@@ -505,6 +510,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					totalSobs--;
 				} else if (IsStringFlag('X', args[idx], out passed)) {
 					pubsPath     = passed;
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsSimpleFlag('S', args[idx])) {
+					showPublics  = true;
 					areSobs[idx] = false;
 					totalSobs--;
 				} else {
@@ -569,13 +578,20 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							}
 
 							// Step 2: Get all extern names and values
-							link = InputSobStepTwo(fileSob, link);
+							link = InputSobStepTwo(sobjFile, fileSob, link);
 
 							startLink[n] = fileSob.BaseStream.Position;
 							n++;
 							fileSob.Close();
 							//Repeat
 						}
+					}
+				}
+
+				if (showPublics) {
+					Console.WriteLine("Public Symbols Defined:");
+					for (idx = 0; idx < (int)link.Count; idx++) { // Cast for MSVC
+						Console.WriteLine("FILE: {0,-17} -- SYMBOL: {1,-30} -- VALUE: {2,6:X}", link[idx].Origin, link[idx].Name, link[idx].Value);
 					}
 				}
 

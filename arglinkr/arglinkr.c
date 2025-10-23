@@ -11,6 +11,7 @@
 
 typedef struct LinkData {
 	char* Name;
+	char* Origin;
 	int32_t Value;
 } LinkData;
 
@@ -58,6 +59,7 @@ void OutputUsage()
 "** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
 "** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
+"** -S\t\t- Display all public symbols.\n"
 "\n"
 "** Re-rewrite Added Options are:\n"
 "** -Q\t\t- Turn off banner on startup.\n"
@@ -77,7 +79,6 @@ void OutputUsage()
 "** -N\t\t- Download to Nintendo Emulation system.\n"
 "** -P<addr>\t- Set Printer port address (in hex), default = 0x378.\n"
 "** -R\t\t- Display ROM block information.\n"
-"** -S\t\t- Display all public symbols.\n"
 "** -T<type>\t- Set ROM type (in hex), default = 0x7D.\n"
 "** -W<prefix>\t- Set prefix (Work directory) for object files.\n"
 "** -Y\t\t- Use secondary ADS backplane CIC.\n"
@@ -262,6 +263,8 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 
 		//Get file path
 		char* filepath = GetName(fileSob);
+		// POSIX requires / as directory separator, Windows and DJGPP tolerate it
+		for (char* current_pos; (current_pos = strchr(filepath, '\\')) != NULL; *current_pos = '/');
 		LuigiFormat("--Open External File: %s\n", filepath);
 		FILE* fileExt = fopen(filepath, "rb"); if (fileExt == NULL) { puts("ArgLink error: cannot open filepath in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileExtZone = (size_t)(s_ioBuffersKiB * 1024); char* fileExtBuffer = (fileExtZone > 0) ? (char*)calloc(fileExtZone, sizeof(char)) : NULL; setvbuf(fileExt, fileExtBuffer, fileExtBuffer ? _IOFBF : _IONBF, fileExtZone);
 		Recopy(fileExt, size, fileOut, offset);
@@ -269,7 +272,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	}
 }
 
-LinkData* InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
+LinkData* InputSobStepTwo(char* sobjName, FILE* fileSob, LinkData* link, size_t* linkCount)
 {
 	do {
 		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData)); if (linktemp == NULL) { puts("ArgLink error: cannot allocate for linktemp of type LinkData*, source code line " STRINGIZE(__LINE__)); exit(70); }
@@ -281,6 +284,7 @@ LinkData* InputSobStepTwo(FILE* fileSob, LinkData* link, size_t* linkCount)
 
 		char* nametempString = (char*)calloc(nametempCount + 1, sizeof(char)); memmove(nametempString, nametemp, nametempCount);linktemp->Name = nametempString;
 		linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
+		linktemp->Origin = sobjName;
 		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
 		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData));if (link == NULL) { puts("ArgLink error: cannot grow list of LinkData named link, source code line " STRINGIZE(__LINE__)); exit(70); }; link[*linkCount - 1] = *linktemp;
 	} while (fgetc(fileSob) == 0);
@@ -454,6 +458,7 @@ int main(int argc, char* argv[])
 	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool)); if (areSobs == NULL) { puts("ArgLink error: cannot allocate for areSobs of type bool*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
+	bool showPublics = false;
 	char* romFile = NULL;
 	char* pubsPath = NULL;
 	char* passed;
@@ -487,6 +492,10 @@ int main(int argc, char* argv[])
 			totalSobs--;
 		} else if (IsStringFlag('X', argv[1 + idx], &passed)) {
 			pubsPath = passed;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsSimpleFlag('S', argv[1 + idx])) {
+			showPublics = true;
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {
@@ -551,13 +560,20 @@ int main(int argc, char* argv[])
 					}
 
 					// Step 2: Get all extern names and values
-					link = InputSobStepTwo(fileSob, link, &linkCount);
+					link = InputSobStepTwo(sobjFile, fileSob, link, &linkCount);
 
 					startLink[n] = ftell(fileSob);
 					n++;
 					fclose(fileSob); free(fileSobBuffer);
 					//Repeat
 				}
+			}
+		}
+
+		if (showPublics) {
+			puts("Public Symbols Defined:");
+			for (idx = 0; idx < (int32_t)linkCount; idx++) { // Cast for MSVC
+				printf("FILE: %-17s -- SYMBOL: %-30s -- VALUE: %6X\n", link[idx].Origin, link[idx].Name, link[idx].Value);
 			}
 		}
 
