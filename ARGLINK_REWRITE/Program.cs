@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using CSize = System.Int32;
 
+// ReSharper disable UseSymbolAlias
 // ReSharper disable SuggestVarOrType_SimpleTypes
 // ReSharper disable SuggestVarOrType_Elsewhere
 // ReSharper disable SuggestVarOrType_BuiltInTypes
@@ -98,6 +99,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 		private static int Search(List<LinkData> link, string name)
 		{
 			int nameId = -1;
+			// ReSharper disable once RedundantCast
 			for (int i = 0; i < (int)link.Count; i++) {	// Cast for MSVC
 				if (link[i].Name.Equals(name)) {
 					nameId = i;
@@ -360,6 +362,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							int   highestdeep    = -1;
 							int   highestdeepidx = -1;
 							int i;
+							// ReSharper disable once RedundantCast
 							for (i = 1; i < (int)linkcalc.Count; i++) {	// Cast for MSVC
 								//Get the first highest one
 								if (highestdeep < linkcalc[i].Deep) {
@@ -371,6 +374,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							//Check for highest priority
 							int highestpri    = -1;
 							int highestpriidx = -1;
+							// ReSharper disable once RedundantCast
 							for (i = highestdeepidx; i < (int)linkcalc.Count; i++) {	// Cast for MSVC
 								//Get the first highest one
 								if (linkcalc[i].Deep != highestdeep || highestpri > linkcalc[i].Priority) {
@@ -471,6 +475,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			string passed;
 			byte   parsedU8;
 			for (idx = 0; idx < args.Length; idx++) {
+				// ReSharper disable once RedundantAssignment
 				passed = null;
 				if (IsSimpleFlag('V', args[idx])) {
 					s_verbose    = true;
