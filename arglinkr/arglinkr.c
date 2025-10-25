@@ -59,6 +59,7 @@ void OutputUsage()
 "** Available Options are:\n"
 "** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
 "** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
+"** -H<size>\t- String hash initial capacity, default = 256.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
 "** -S\t\t- Display all public symbols.\n"
 "\n"
@@ -73,7 +74,6 @@ void OutputUsage()
 "** -C\t\t- Duplicate public warnings on.\n"
 "** -D\t\t- Download to ramboy.\n"
 "** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
-"** -H<size>\t- String hash size, default = 256.\n"
 "** -I\t\t- Display file information while loading.\n"
 "** -L<size>\t- Display used ROM layout (size is in KiB).\n"
 "** -M<size>\t- Memory size, default = 2 (mebibytes).\n"
@@ -199,6 +199,35 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 					} else if (parsed > max) {
 						*value = max;
 						printf("ArgLink warning: switch -%c set to %hhu\n", flag, max);
+					} else {
+						*value = parsed;
+					}
+
+					return true;
+				}
+			}
+		}
+	}
+
+	*value = 0;
+	return false;
+}
+
+bool IsUInt16Flag(char flag, char* argument, uint16_t u2min, uint16_t u2max, uint16_t* value)
+{
+	if (strlen(argument) > 2) {
+		char c0 = argument[0];
+		if ((c0 == '-') || (c0 == '/')) {
+			char c1 = argument[1];
+			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
+				uint16_t parsed;
+				if (sscanf((argument + 2), "%hu", &parsed)) {
+					if (parsed < u2min) {
+						*value = u2min;
+						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2min);
+					} else if (parsed > u2max) {
+						*value = u2max;
+						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2max);
 					} else {
 						*value = parsed;
 					}
@@ -450,6 +479,7 @@ int main(int argc, char* argv[])
 	char* pubsPath = NULL;
 	char* passed;
 	uint8_t parsedU8;
+	uint16_t parsedU16;
 	for (idx = 0; idx < (argc - 1); idx++) {
 		passed = NULL;
 		if (IsSimpleFlag('V', argv[1 + idx])) {
@@ -483,6 +513,10 @@ int main(int argc, char* argv[])
 			totalSobs--;
 		} else if (IsSimpleFlag('S', argv[1 + idx])) {
 			showPublics = true;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsUInt16Flag('H', argv[1 + idx], 16, 65535, &parsedU16)) {
+			s_stringHashSize = parsedU16;
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {

@@ -428,6 +428,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					return "%c";
 				} else if ((item == "min") || (item == "max")) { // uint8_t
 					return "%hhu";
+				} else if ((item == "u2min") || (item == "u2max")) { // uint16_t
+					return "%hu";
 				} else if (item == "finalSize") {         // int64_t
 					return "%\" PRId64 \"";               // "%lld";
 				} else if (ContainsText(item, "count")) { // size_t
@@ -769,6 +771,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		{
 			if (managedType == nameof(Byte)) {
 				return "%hhu";
+			} else if (managedType == nameof(UInt16)) {
+				return "%hu";
 			} else {
 				throw new NotSupportedException();
 			}

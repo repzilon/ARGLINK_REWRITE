@@ -71,6 +71,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** Available Options are:
 ** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
 ** -E<.ext>	- Change default file extension, default = '.SOB'.
+** -H<size>	- String hash initial capacity, default = 256.
 ** -O<romfile>	- Output a ROM file.
 ** -S		- Display all public symbols.
 
@@ -85,7 +86,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -C		- Duplicate public warnings on.
 ** -D		- Download to ramboy.
 ** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
-** -H<size>	- String hash size, default = 256.
 ** -I		- Display file information while loading.
 ** -L<size>	- Display used ROM layout (size is in KiB).
 ** -M<size>	- Memory size, default = 2 (mebibytes).
@@ -212,6 +212,35 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							} else if (parsed > max) {
 								value = max;
 								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, max);
+							} else {
+								value = parsed;
+							}
+
+							return true;
+						}
+					}
+				}
+			}
+
+			value = 0;
+			return false;
+		}
+
+		private static bool IsUInt16Flag(char flag, string argument, ushort u2min, ushort u2max, out ushort value)
+		{
+			if (argument.Length > 2) {
+				char c0 = argument[0];
+				if ((c0 == '-') || (c0 == '/')) {
+					char c1 = argument[1];
+					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
+						ushort parsed;
+						if (UInt16.TryParse(argument.Substring(2), out parsed)) {
+							if (parsed < u2min) {
+								value = u2min;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2min);
+							} else if (parsed > u2max) {
+								value = u2max;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2max);
 							} else {
 								value = parsed;
 							}
@@ -465,6 +494,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			string pubsPath    = null;
 			string passed;
 			byte   parsedU8;
+			ushort parsedU16;
 			for (idx = 0; idx < args.Length; idx++) {
 				// ReSharper disable once RedundantAssignment
 				passed = null;
@@ -500,6 +530,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				} else if (IsSimpleFlag('S', args[idx])) {
 					showPublics  = true;
 					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsUInt16Flag('H', args[idx], 16, 65535, out parsedU16)) {
+					s_stringHashSize = parsedU16;
+					areSobs[idx]     = false;
 					totalSobs--;
 				} else {
 					areSobs[idx] = true;
