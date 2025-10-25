@@ -160,6 +160,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="arglinkr.c" />
+    <ClCompile Include="ht.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ht.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

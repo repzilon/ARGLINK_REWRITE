@@ -76,8 +76,8 @@ $(info Compiler and flags: $(COMPILE))
 
 all: arglinkr$(EXE)
 
-arglinkr$(EXE): arglinkr.c
-	$(COMPILE) $< -o $@
+arglinkr$(EXE): arglinkr.c ht.c
+	$(COMPILE) arglinkr.c ht.c -o $@
 
 clean:
 	$(RM) arglinkr$(EXE)

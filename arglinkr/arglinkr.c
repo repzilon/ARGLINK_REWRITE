@@ -1,3 +1,4 @@
+#include "ht.h"
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -84,18 +85,6 @@ void OutputUsage()
 "** -Y\t\t- Use secondary ADS backplane CIC.\n"
 "** -Z\t\t- Generate a debugger MAP file.\n"
 );
-}
-
-int32_t Search(LinkData* link, size_t linkCount, char* name)
-{
-	int32_t nameId = -1;
-	for (int32_t i = 0; i < (int32_t)linkCount; i++) { // Cast for MSVC
-		if (strcmp(link[i].Name, name) == 0) {
-			nameId = i;
-		}
-	}
-
-	return nameId;
 }
 
 char* GetNameChars(FILE* fileSob, size_t* nametempCount)
@@ -272,7 +261,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	}
 }
 
-LinkData* InputSobStepTwo(char* sobjName, FILE* fileSob, LinkData* link, size_t* linkCount)
+void InputSobStepTwo(ht* link, char* sobjName, FILE* fileSob)
 {
 	do {
 		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData)); if (linktemp == NULL) { puts("ArgLink error: cannot allocate for linktemp of type LinkData*, source code line " STRINGIZE(__LINE__)); exit(70); }
@@ -286,13 +275,11 @@ LinkData* InputSobStepTwo(char* sobjName, FILE* fileSob, LinkData* link, size_t*
 		linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
 		linktemp->Origin = sobjName;
 		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
-		(*linkCount)++; link = (LinkData*)realloc(link, *linkCount * sizeof(LinkData));if (link == NULL) { puts("ArgLink error: cannot grow list of LinkData named link, source code line " STRINGIZE(__LINE__)); exit(70); }; link[*linkCount - 1] = *linktemp;
+		ht_set(link, linktemp->Name, linktemp);
 	} while (fgetc(fileSob) == 0);
-	// The return statement is needed to update the reference to link in the C version
-	return link;
 }
 
-void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, LinkData* link, size_t* linkCount)
+void PerformLink(ht* link, char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n)
 {
 	FILE* fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
@@ -306,19 +293,19 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 			while (ftell(fileSob) < fileSize - 1) {
 				LuigiFormat("-%X\n", ftell(fileSob));
 				char* name = GetName(fileSob);
-				int32_t nameId = Search(link, *linkCount, name);
+				LinkData* at = (LinkData*)ht_get(link, name);
 
 				Calculation* linkcalc = NULL; size_t linkcalcCount = 0;
-				Calculation* calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
+				Calculation* calctemp = InitCalculation(-1, 0, 0, at->Value);
 				linkcalcCount++; linkcalc = (Calculation*)realloc(linkcalc, linkcalcCount * sizeof(Calculation));if (linkcalc == NULL) { puts("ArgLink error: cannot grow list of Calculation named linkcalc, source code line " STRINGIZE(__LINE__)); exit(70); }; linkcalc[linkcalcCount - 1] = *calctemp;
 
-				LuigiFormat("--%s : %X\n", name, link[nameId].Value);
+				LuigiFormat("--%s : %X\n", name, at->Value);
 
 				if (fgetc(fileSob) != 0) {
 					fseek(fileSob, -1, SEEK_CUR);
 					name = GetName(fileSob);
-					nameId = Search(link, *linkCount, name);
-					LuigiFormat("----%s : %X\n", name, link[nameId].Value);
+					at = (LinkData*)ht_get(link, name);
+					LuigiFormat("----%s : %X\n", name, at->Value);
 					if (fgetc(fileSob) == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); };
 				}
 
@@ -333,7 +320,7 @@ void PerformLink(char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n, 
 					calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
 						calccheck2, ReadLEInt32(fileSob));
 					if (calccheck1 > 0x80) {
-						calctemp->Value = link[nameId].Value;
+						calctemp->Value = at->Value;
 					}
 
 					{ int whatRead = fgetc(fileSob); if (whatRead == EOF) { puts("ArgLink error: reading byte from fileSob failed, source code line " STRINGIZE(__LINE__)); exit(74); } else { calccheck1 = (uint8_t)whatRead; } };
@@ -532,7 +519,8 @@ int main(int argc, char* argv[])
 
 		// Steps 1 & 2: Input all data and list all links
 		puts("Processing Externals.");
-		LinkData* link = NULL; size_t linkCount = 0;
+		ht* link = ht_create(s_stringHashSize);
+
 		int64_t* startLink = (int64_t*)calloc((size_t)totalSobs, sizeof(int64_t)); if (startLink == NULL) { puts("ArgLink error: cannot allocate for startLink of type int64_t*, source code line " STRINGIZE(__LINE__)); exit(70); }
 		int32_t firstSob = -1;
 		int32_t n = 0;
@@ -560,7 +548,7 @@ int main(int argc, char* argv[])
 					}
 
 					// Step 2: Get all extern names and values
-					link = InputSobStepTwo(sobjFile, fileSob, link, &linkCount);
+					InputSobStepTwo(link, sobjFile, fileSob);
 
 					startLink[n] = ftell(fileSob);
 					n++;
@@ -572,8 +560,9 @@ int main(int argc, char* argv[])
 
 		if (showPublics) {
 			puts("Public Symbols Defined:");
-			for (idx = 0; idx < (int32_t)linkCount; idx++) { // Cast for MSVC
-				printf("FILE: %-17s -- SYMBOL: %-30s -- VALUE: %6X\n", link[idx].Origin, link[idx].Name, link[idx].Value);
+			// FIXME : In original ArgLink, symbol output is sorted by symbol name
+			hti kvp = ht_iterator(link); while (ht_next(&kvp)) {
+				printf("FILE: %-17s -- SYMBOL: %-30s -- VALUE: %6X\n", ((LinkData*)kvp.value)->Origin, kvp.key, ((LinkData*)kvp.value)->Value);
 			}
 		}
 
@@ -584,21 +573,21 @@ int main(int argc, char* argv[])
 		for (idx = firstSob; idx < (argc - 1); idx++) {
 			if (areSobs[idx]) {
 				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
-				PerformLink(sobjFile, fileOut, startLink, n, link, &linkCount);
+				PerformLink(link, sobjFile, fileOut, startLink, n);
 				n++;
 			}
 		}
 
 		fseek(fileOut, 0, SEEK_END); int64_t finalSize = ftell(fileOut);
 		finalSize = (finalSize / 1024) + ((finalSize % 1024) > 0 ? 1 : 0);
-		printf("| Publics: %" PRIuPTR "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", linkCount, totalSobs, finalSize);
+		printf("| Publics: %" PRIuPTR "\tFiles: %" PRId32 "\tROM Size: %" PRId64 "KiB |\n", ht_length(link), totalSobs, finalSize);
 
 		fclose(fileOut); free(fileOutBuffer);
 
 		if (!((pubsPath == NULL) || (strlen(pubsPath) < 1))) {
 			FILE* filePubs = fopen(pubsPath, "wb"); if (filePubs == NULL) { puts("ArgLink error: cannot open pubsPath in Write mode, source code line " STRINGIZE(__LINE__)); exit(73); }; size_t filePubsZone = (size_t)(s_ioBuffersKiB * 1024); char* filePubsBuffer = (filePubsZone > 0) ? (char*)calloc(filePubsZone, sizeof(char)) : NULL; setvbuf(filePubs, filePubsBuffer, filePubsBuffer ? _IOFBF : _IONBF, filePubsZone);
-			for (idx = 0; idx < (int32_t)linkCount; idx++) { // Cast for MSVC
-				fprintf(filePubs, "%s\n", link[idx].Name);
+			hti kvp = ht_iterator(link); while (ht_next(&kvp)) {
+				fprintf(filePubs, "%s\n", kvp.key);
 			}
 			fclose(filePubs); free(filePubsBuffer);
 		}
