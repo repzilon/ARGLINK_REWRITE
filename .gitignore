@@ -294,3 +294,4 @@ arglinkr/arglinkr
 arglinkr/arglinkr.exe
 arglinkr/arglinkr.EXE
 *.bak
+/arglinkr/ht-master

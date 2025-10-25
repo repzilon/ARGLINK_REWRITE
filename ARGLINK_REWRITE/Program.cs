@@ -98,19 +98,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -Z		- Generate a debugger MAP file.");
 		}
 
-		private static int Search(List<LinkData> link, string name)
-		{
-			int nameId = -1;
-			// ReSharper disable once RedundantCast
-			for (int i = 0; i < (int)link.Count; i++) { // Cast for MSVC
-				if (link[i].Name.Equals(name)) {
-					nameId = i;
-				}
-			}
-
-			return nameId;
-		}
-
 		private static List<char> GetNameChars(BinaryReader fileSob)
 		{
 			List<char> nametemp = new List<char>();
@@ -291,7 +278,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 		}
 
-		private static List<LinkData> InputSobStepTwo(string sobjName, BinaryReader fileSob, List<LinkData> link)
+		private static void InputSobStepTwo(Dictionary<string, LinkData> link, string sobjName, BinaryReader fileSob)
 		{
 			do {
 				LinkData   linktemp = new LinkData();
@@ -305,13 +292,11 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				linktemp.Value  = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
 				linktemp.Origin = sobjName;
 				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
-				link.Add(linktemp);
+				link.Add(linktemp.Name, linktemp);
 			} while (fileSob.ReadByte() == 0);
-			// The return statement is needed to update the reference to link in the C version
-			return link;
 		}
 
-		private static void PerformLink(string sobjFile, BinaryWriter fileOut, long[] startLink, int n, List<LinkData> link)
+		private static void PerformLink(Dictionary<string, LinkData> link, string sobjFile, BinaryWriter fileOut, long[] startLink, int n)
 		{
 			BinaryReader fileSob  = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 			long         fileSize = fileSob.BaseStream.Length;
@@ -324,20 +309,20 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					fileSob.BaseStream.Seek(startIndex, SeekOrigin.Begin);
 					while (fileSob.BaseStream.Position < fileSize - 1) {
 						LuigiFormat("-{0:X}", fileSob.BaseStream.Position);
-						string name   = GetName(fileSob);
-						int    nameId = Search(link, name);
+						string   name = GetName(fileSob);
+						LinkData at   = link[name];
 
 						List<Calculation> linkcalc = new List<Calculation>();
-						Calculation       calctemp = InitCalculation(-1, 0, 0, link[nameId].Value);
+						Calculation       calctemp = InitCalculation(-1, 0, 0, at.Value);
 						linkcalc.Add(calctemp);
 
-						LuigiFormat("--{0} : {1:X}", name, link[nameId].Value);
+						LuigiFormat("--{0} : {1:X}", name, at.Value);
 
 						if (fileSob.ReadByte() != 0) {
 							fileSob.BaseStream.Seek(-1, SeekOrigin.Current);
-							name   = GetName(fileSob);
-							nameId = Search(link, name);
-							LuigiFormat("----{0} : {1:X}", name, link[nameId].Value);
+							name = GetName(fileSob);
+							at   = link[name];
+							LuigiFormat("----{0} : {1:X}", name, at.Value);
 							fileSob.ReadByte();
 						}
 
@@ -352,7 +337,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							calctemp = InitCalculation((calccheck1 & 0x70) >> 4, calccheck1 & 0x3,
 								calccheck2, fileSob.ReadInt32());
 							if (calccheck1 > 0x80) {
-								calctemp.Value = link[nameId].Value;
+								calctemp.Value = at.Value;
 							}
 
 							calccheck1 = fileSob.ReadByte();
@@ -550,11 +535,12 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				// Steps 1 & 2: Input all data and list all links
 				Console.WriteLine("Processing Externals.");
-				List<LinkData> link      = new List<LinkData>();
-				long[]         startLink = new long[totalSobs];
-				int            firstSob  = -1;
-				int            n         = 0;
-				string         sobjFile;
+				Dictionary<string, LinkData> link = new Dictionary<string, LinkData>(s_stringHashSize);
+
+				long[] startLink = new long[totalSobs];
+				int    firstSob  = -1;
+				int    n         = 0;
+				string sobjFile;
 				for (idx = 0; idx < args.Length; idx++) {
 					if (areSobs[idx]) {
 						if (firstSob < 0) {
@@ -578,7 +564,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							}
 
 							// Step 2: Get all extern names and values
-							link = InputSobStepTwo(sobjFile, fileSob, link);
+							InputSobStepTwo(link, sobjFile, fileSob);
 
 							startLink[n] = fileSob.BaseStream.Position;
 							n++;
@@ -590,8 +576,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				if (showPublics) {
 					Console.WriteLine("Public Symbols Defined:");
-					for (idx = 0; idx < (int)link.Count; idx++) { // Cast for MSVC
-						Console.WriteLine("FILE: {0,-17} -- SYMBOL: {1,-30} -- VALUE: {2,6:X}", link[idx].Origin, link[idx].Name, link[idx].Value);
+					// FIXME : In original ArgLink, public symbol output is sorted by symbol name
+					foreach (var kvp in link) {
+						Console.WriteLine("FILE: {0,-17} -- SYMBOL: {1,-30} -- VALUE: {2,6:X}", kvp.Value.Origin, kvp.Key, kvp.Value.Value);
 					}
 				}
 
@@ -602,7 +589,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				for (idx = firstSob; idx < args.Length; idx++) {
 					if (areSobs[idx]) {
 						sobjFile = AppendExtensionIfAbsent(args[idx]);
-						PerformLink(sobjFile, fileOut, startLink, n, link);
+						PerformLink(link, sobjFile, fileOut, startLink, n);
 						n++;
 					}
 				}
@@ -615,9 +602,8 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 				if (!String.IsNullOrEmpty(pubsPath)) {
 					StreamWriter filePubs = new StreamWriter(new FileStream(pubsPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
-					// ReSharper disable once RedundantCast
-					for (idx = 0; idx < (int)link.Count; idx++) { // Cast for MSVC
-						filePubs.WriteLine("{0}", link[idx].Name);
+					foreach (var kvp in link) {
+						filePubs.WriteLine("{0}", kvp.Key);
 					}
 					filePubs.Close();
 				}

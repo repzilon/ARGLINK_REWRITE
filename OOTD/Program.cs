@@ -22,16 +22,18 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 	internal static class Program
 	{
 		private static readonly Dictionary<string, string[]> s_dicUsingToIncludes = new Dictionary<string, string[]> {
-			{ "System", new[] { "ctype.h", "inttypes.h", "stdarg.h", "stdbool.h", "string.h", "stdlib.h" } },
-			{ "System.IO", new[] { "stdio.h" } }
+			{ "System", new[] { "<ctype.h>", "<inttypes.h>", "<stdarg.h>", "<stdbool.h>", "<string.h>", "<stdlib.h>" } },
+			{ "System.IO", new[] { "<stdio.h>" } }, { "System.Collections.Generic", new[] { "\"ht.h\"" } }
 		};
 
 		// Yes, CSize is intentionally signed in C# and unsigned in C
+		// And place most complex types first
 		private static readonly Dictionary<string, string> s_dicTypeMapping = new Dictionary<string, string> {
+			{ "Dictionary<string, LinkData>", "ht*" },
+			{ "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" }, { "List<char>", "char*" },
+			{ "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" }, { "StreamWriter", "FILE*" },
 			{ "string", "char*" }, { "ushort", "uint16_t" }, { "CSize", "size_t" }, { "int", "int32_t" },
-			{ "long", "int64_t" }, { "byte", "uint8_t" }, { "BinaryReader", "FILE*" }, { "BinaryWriter", "FILE*" },
-			{ "List<char>", "char*" }, { "List<LinkData>", "LinkData*" }, { "List<Calculation>", "Calculation*" },
-			{ "StreamWriter", "FILE*" }
+			{ "long", "int64_t" }, { "byte", "uint8_t" },
 		};
 
 		private static void OutputLogo()
@@ -82,7 +84,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 					// Write C Declarations
 					foreach (var strInclude in UsingsToIncludes(strAllSource)) {
-						destination.WriteLine("#include <{0}>", strInclude);
+						destination.Write("#include ");
+						destination.WriteLine(strInclude);
 					}
 					destination.WriteLine();
 
@@ -111,6 +114,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = AddressMemberAccess(strCleaned);
 					strCleaned = HandleCounts(strCleaned);
 					strCleaned = TranslateSpecificCalls(strCleaned);
+					strCleaned = TranslateHashtableMethods(strCleaned);
 
 					// Write C code
 					strCleaned = strCleaned.Trim().Replace("\r\n", "\n").Replace('\r', '\n'); // Normalize to LF
@@ -777,6 +781,61 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return g[1].Value == source ? QuickFormat(
 				"for (char* current_pos; (current_pos = strchr({0}, '{1}')) != NULL; *current_pos = '{2}')",
 				source, g[3].Value, g[4].Value) : m.Value;
+		}
+		#endregion
+
+		#region TranslateHashtableMethods
+		private static string TranslateHashtableMethods(string translating)
+		{
+			const string kCtor = @"([A-Za-z0-9_]+) = new Dictionary<[a-z*]+,\s*([A-Za-z]+)>[(]([A-Za-z0-9_]*)[)]";
+
+			var mtcCtors = Regex.Matches(translating, kCtor);
+			var c        = mtcCtors.Count;
+			var lstDicos = new List<string>(c);
+			int i;
+			for (i = 0; i < c; i++) {
+				lstDicos.Add(mtcCtors[i].Groups[1].Value);
+			}
+			translating = Regex.Replace(translating, kCtor, ReplaceNewHash);
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]Add[(](.*),\s(.*)[)]", "ht_set($1, $2, $3)");
+			translating = Regex.Replace(translating,
+				@"([A-Z-a-z0-9_]+)\s+([A-Z-a-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)\[([A-Za-z]+)\]",
+				m => ReplaceHashGet(m, lstDicos, mtcCtors, true));
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\[([A-Za-z]+)\]",
+				m => ReplaceHashGet(m, lstDicos, mtcCtors, false));
+			translating = Regex.Replace(translating, @"foreach [(]var ([A-Za-z0-9_]+) in ([A-Za-z0-9_]+)[)]",
+				"hti $1 = ht_iterator($2); while (ht_next(&$1))");
+			translating = translating.Replace("kvp.Key", "kvp.key").Replace("kvp->Value", "kvp.value");
+			// FIXME : hard-coded type of the value
+			translating = Regex.Replace(translating, @"(kvp[.][Vv]alue)->", "((LinkData*)$1)->");
+
+			for (i = 0; i < c; i++) {
+				translating = translating.Replace(lstDicos[i] + "Count", "ht_length(" + lstDicos[i] + ")");
+			}
+
+			return translating;
+		}
+
+		private static string ReplaceHashGet(Match m, List<string> names, MatchCollection declarations, bool withDeclaration)
+		{
+			var g     = m.Groups;
+			var dic   = g[withDeclaration ? 3 : 1].Value;
+			var index = names.IndexOf(dic);
+			if (index < 0) {
+				return m.Value;
+			} else if (withDeclaration) {
+				return String.Format(CultureInfo.InvariantCulture, "{0}* {1} = ({0}*)ht_get({2}, {3})",
+					g[1].Value, g[2].Value, dic, g[4].Value);
+			} else {
+				return QuickFormat("({2}*)ht_get({0}, {1})", dic, g[2].Value, declarations[index].Groups[2].Value);
+			}
+		}
+
+		private static string ReplaceNewHash(Match m)
+		{
+			var g        = m.Groups;
+			var capacity = g[3].Value;
+			return QuickFormat("{0} = ht_create({1})", g[1].Value, String.IsNullOrEmpty(capacity) ? "16" : capacity);
 		}
 		#endregion
 
