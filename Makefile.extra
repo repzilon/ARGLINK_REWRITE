@@ -3,6 +3,8 @@ clean-managed:
 	rm -rf ARGLINK_REWRITE/obj
 	rm -rf OOTD/bin
 	rm -rf OOTD/obj
+	rm -rf ClassifySobjStrings/bin
+	rm -rf ClassifySobjStrings/obj
 
 clean-msvc:
 	rm -rf Debug
@@ -17,6 +19,7 @@ clean: clean-managed clean-msvc
 	
 distclean: clean-managed clean-msvc
 	$(MAKE) -C arglinkr distclean
+	rm -rf arglinkr/ht-master
 	rm -f */*.bak
 
 mrproper: distclean
