@@ -70,6 +70,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 ** Available Options are:
 ** -B<kib>	- Set file input/output buffers (0-31), default = 10 KiB.
+** -C		- Duplicate public warnings on.
 ** -E<.ext>	- Change default file extension, default = '.SOB'.
 ** -H<size>	- String hash initial capacity, default = 256.
 ** -O<romfile>	- Output a ROM file.
@@ -83,7 +84,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** Unimplemented Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
 ** -A2		- Download to ADS SuperChild2 hardware.
-** -C		- Duplicate public warnings on.
 ** -D		- Download to ramboy.
 ** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -I		- Display file information while loading.
@@ -307,7 +307,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			}
 		}
 
-		private static void InputSobStepTwo(Dictionary<string, LinkData> link, string sobjName, BinaryReader fileSob)
+		private static void InputSobStepTwo(Dictionary<string, LinkData> link, string sobjName, BinaryReader fileSob, bool duplicateWarning)
 		{
 			do {
 				LinkData   linktemp = new LinkData();
@@ -321,6 +321,9 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				linktemp.Value  = fileSob.ReadUInt16() | (fileSob.ReadByte() << 16);
 				linktemp.Origin = sobjName;
 				LuigiFormat("--{0} : {1:X}", linktemp.Name, linktemp.Value);
+				if (duplicateWarning && link.ContainsKey(linktemp.Name)) {
+					Console.WriteLine("ArgLink warning: Duplicate public symbol {0}", linktemp.Name);
+				}
 				link.Add(linktemp.Name, linktemp);
 			} while (fileSob.ReadByte() == 0);
 		}
@@ -490,6 +493,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			int    totalSobs   = args.Length;
 			bool   showLogo    = true;
 			bool   showPublics = false;
+			bool   warnDupes   = false;
 			string romFile     = null;
 			string pubsPath    = null;
 			string passed;
@@ -534,6 +538,10 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				} else if (IsUInt16Flag('H', args[idx], 16, 65535, out parsedU16)) {
 					s_stringHashSize = parsedU16;
 					areSobs[idx]     = false;
+					totalSobs--;
+				} else if (IsSimpleFlag('C', args[idx])) {
+					warnDupes    = true;
+					areSobs[idx] = false;
 					totalSobs--;
 				} else {
 					areSobs[idx] = true;
@@ -598,7 +606,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 							}
 
 							// Step 2: Get all extern names and values
-							InputSobStepTwo(link, sobjFile, fileSob);
+							InputSobStepTwo(link, sobjFile, fileSob, warnDupes);
 
 							startLink[n] = fileSob.BaseStream.Position;
 							n++;

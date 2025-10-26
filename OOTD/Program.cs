@@ -817,6 +817,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				translating = translating.Replace(lstDicos[i] + "Count", "ht_length(" + lstDicos[i] + ")");
 			}
 
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)[.]ContainsKey[(](.+?)[)]", "ht_get($1, $2) != NULL");
+
 			return translating;
 		}
 

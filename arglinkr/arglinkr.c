@@ -58,6 +58,7 @@ void OutputUsage()
 "\n"
 "** Available Options are:\n"
 "** -B<kib>\t- Set file input/output buffers (0-31), default = 10 KiB.\n"
+"** -C\t\t- Duplicate public warnings on.\n"
 "** -E<.ext>\t- Change default file extension, default = '.SOB'.\n"
 "** -H<size>\t- String hash initial capacity, default = 256.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
@@ -71,7 +72,6 @@ void OutputUsage()
 "** Unimplemented Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
-"** -C\t\t- Duplicate public warnings on.\n"
 "** -D\t\t- Download to ramboy.\n"
 "** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
 "** -I\t\t- Display file information while loading.\n"
@@ -290,7 +290,7 @@ void InputSobStepOne(int32_t i, FILE* fileOut, FILE* fileSob)
 	}
 }
 
-void InputSobStepTwo(ht* link, char* sobjName, FILE* fileSob)
+void InputSobStepTwo(ht* link, char* sobjName, FILE* fileSob, bool duplicateWarning)
 {
 	do {
 		LinkData* linktemp = (LinkData*)calloc(1, sizeof(LinkData)); if (linktemp == NULL) { puts("ArgLink error: cannot allocate for linktemp of type LinkData*, source code line " STRINGIZE(__LINE__)); exit(70); }
@@ -304,6 +304,9 @@ void InputSobStepTwo(ht* link, char* sobjName, FILE* fileSob)
 		linktemp->Value = fgetc(fileSob) | (fgetc(fileSob) << 8) | (fgetc(fileSob) << 16);
 		linktemp->Origin = sobjName;
 		LuigiFormat("--%s : %X\n", linktemp->Name, linktemp->Value);
+		if (duplicateWarning && ht_get(link, linktemp->Name) != NULL) {
+			printf("ArgLink warning: Duplicate public symbol %s\n", linktemp->Name);
+		}
 		ht_set(link, linktemp->Name, linktemp);
 	} while (fgetc(fileSob) == 0);
 }
@@ -475,6 +478,7 @@ int main(int argc, char* argv[])
 	int32_t totalSobs = (argc - 1);
 	bool showLogo = true;
 	bool showPublics = false;
+	bool warnDupes = false;
 	char* romFile = NULL;
 	char* pubsPath = NULL;
 	char* passed;
@@ -517,6 +521,10 @@ int main(int argc, char* argv[])
 			totalSobs--;
 		} else if (IsUInt16Flag('H', argv[1 + idx], 16, 65535, &parsedU16)) {
 			s_stringHashSize = parsedU16;
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsSimpleFlag('C', argv[1 + idx])) {
+			warnDupes = true;
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {
@@ -582,7 +590,7 @@ int main(int argc, char* argv[])
 					}
 
 					// Step 2: Get all extern names and values
-					InputSobStepTwo(link, sobjFile, fileSob);
+					InputSobStepTwo(link, sobjFile, fileSob, warnDupes);
 
 					startLink[n] = ftell(fileSob);
 					n++;
