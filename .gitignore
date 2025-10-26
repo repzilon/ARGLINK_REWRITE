@@ -54,6 +54,7 @@ artifacts/
 *.ilk
 *.meta
 *.obj
+*.o
 *.pch
 *.pdb
 *.pgc
@@ -289,9 +290,17 @@ __pycache__/
 
 # macOS Finder
 .DS_Store
+._*.*
 
+# Compiled executables
 arglinkr/arglinkr
-arglinkr/arglinkr.exe
-arglinkr/arglinkr.EXE
+arglinkr/datamode
+arglinkr/*.exe
+arglinkr/*.EXE
+
+# Dev-C++ generated files
+arglinkr/Makefile.win
+arglinkr/ARGLINKR_private.*
+
 *.bak
 /arglinkr/ht-master

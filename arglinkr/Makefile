@@ -89,6 +89,10 @@ distclean: clean
 	$(RM) *.log
 	$(RM) *.bak
 	$(RM) arglinkr.exe
+	$(RM) arglinkr-w98.exe
+	$(RM) HT.o
+	$(RM) ._*.*
+	$(RM) ARGLINKR_private.*
 
 help:
 	@echo "Available targets: all clean distclean"

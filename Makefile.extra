@@ -16,10 +16,11 @@ clean-msvc:
 
 clean: clean-managed clean-msvc
 	$(MAKE) -C arglinkr clean
-	
+
 distclean: clean-managed clean-msvc
 	$(MAKE) -C arglinkr distclean
 	rm -rf arglinkr/ht-master
+	rm -rf arglinkr/.idea
 	rm -f */*.bak
 
 mrproper: distclean

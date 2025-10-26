@@ -26,7 +26,7 @@ ht* ht_create(size_t initialCapacity)
     }
 
     // Allocate space for hash table struct.
-    ht* table = calloc(1, sizeof(ht));
+    ht* table = (ht*)calloc(1, sizeof(ht));
     if (table == NULL) {
         return NULL;
     }
@@ -34,7 +34,7 @@ ht* ht_create(size_t initialCapacity)
     table->capacity = initialCapacity;
 
     // Allocate (zero'd) space for entry buckets.
-    table->entries = calloc(table->capacity, sizeof(ht_entry));
+    table->entries = (ht_entry*)calloc(table->capacity, sizeof(ht_entry));
     if (table->entries == NULL) {
         free(table); // error, free table before we return!
         return NULL;
@@ -54,17 +54,14 @@ void ht_destroy(ht* table)
     free(table);
 }
 
-#define FNV_OFFSET 14695981039346656037UL
-#define FNV_PRIME 1099511628211UL
-
 // Return 64-bit FNV-1a hash for key (NUL-terminated). See description:
-// https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
+// https://en.wikipedia.org/wiki/Fowler-Noll-Vo_hash_function
 static uint64_t hash_key(const char* key)
 {
-    uint64_t hash = FNV_OFFSET;
+    uint64_t hash = 1469598103934665603ULL;
     for (const char* p = key; *p; p++) {
         hash ^= (uint64_t)(unsigned char)(*p);
-        hash *= FNV_PRIME;
+        hash *= 1099511628211ULL;
     }
     return hash;
 }
@@ -135,7 +132,7 @@ static bool ht_expand(ht* table)
     if (new_capacity < table->capacity) {
         return false;  // integer overflow (capacity would be too big)
     }
-    ht_entry* new_entries = calloc(new_capacity, sizeof(ht_entry));
+    ht_entry* new_entries = (ht_entry*)calloc(new_capacity, sizeof(ht_entry));
     if (new_entries == NULL) {
         return false;
     }
