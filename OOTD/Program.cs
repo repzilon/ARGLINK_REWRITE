@@ -415,12 +415,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		private static string ConvertFormatSpecifier(Match m2, MatchCollection itemsToFormat)
 		{
 			// Rough but works for now
-			var   g  = m2.Groups;
-			var   g2 = g[2].Value;
-			short width;
+			var g  = m2.Groups;
+			var g2 = g[2].Value;
 			if (g2.EndsWith(":X")) {
-				return g2.StartsWith(",") && Int16.TryParse(g2.Substring(1, g2.Length - 3), out width)
-					? "%" + width + "X" : "%X";
+				return ConvertRadixSpecifier(g2, 'X');
+			} else if (g2.EndsWith(":x")) {
+				return ConvertRadixSpecifier(g2, 'x');
 			} else {
 				var position = Byte.Parse(g[1].Value);
 				var item     = itemsToFormat[position].Groups[1].Value;
@@ -428,7 +428,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					return "%c";
 				} else if ((item == "min") || (item == "max")) { // uint8_t
 					return "%hhu";
-				} else if ((item == "u2min") || (item == "u2max")) { // uint16_t
+				} else if ((item == "u2min") || (item == "u2max") || (item == "u2Min") || (item == "u2Max")) { // uint16_t
 					return "%hu";
 				} else if (item == "finalSize") {         // int64_t
 					return "%\" PRId64 \"";               // "%lld";
@@ -438,8 +438,31 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 						   ContainsText(item, "size")) { // int32_t
 					return "%\" PRId32 \"";              // "%d";
 				} else {
+					short width;
 					return g2.StartsWith(",") && Int16.TryParse(g2.Substring(1), out width) ? "%" + width + "s" : "%s";
 				}
+			}
+		}
+
+		private static string ConvertRadixSpecifier(string g2, char radix)
+		{
+			short width;
+			if (g2.StartsWith(",") && Int16.TryParse(g2.Substring(1, g2.Length - 3), out width)) {
+				var  wabs = Math.Abs(width);
+				byte bits;
+				if (wabs > 8) {
+					bits = 64;
+				} else if (wabs > 4) {
+					bits = 32;
+				} else if (wabs > 2) {
+					bits = 16;
+				} else {
+					bits = 8;
+				}
+
+				return QuickFormat("%{0}\" PRI{1}{2} \"", width.ToString(), radix.ToString(), bits.ToString());
+			} else {
+				return "%" + radix;
 			}
 		}
 		#endregion

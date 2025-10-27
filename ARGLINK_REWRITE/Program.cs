@@ -226,7 +226,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 			return false;
 		}
 
-		private static bool IsUInt16Flag(char flag, string argument, ushort u2min, ushort u2max, out ushort value)
+		private static bool IsUInt16Flag(char flag, string argument, ushort u2Min, ushort u2Max, out ushort value)
 		{
 			if (argument.Length > 2) {
 				char c0 = argument[0];
@@ -235,12 +235,12 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
 						ushort parsed;
 						if (UInt16.TryParse(argument.Substring(2), out parsed)) {
-							if (parsed < u2min) {
-								value = u2min;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2min);
-							} else if (parsed > u2max) {
-								value = u2max;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2max);
+							if (parsed < u2Min) {
+								value = u2Min;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2Min);
+							} else if (parsed > u2Max) {
+								value = u2Max;
+								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2Max);
 							} else {
 								value = parsed;
 							}

@@ -213,7 +213,7 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 	return false;
 }
 
-bool IsUInt16Flag(char flag, char* argument, uint16_t u2min, uint16_t u2max, uint16_t* value)
+bool IsUInt16Flag(char flag, char* argument, uint16_t u2Min, uint16_t u2Max, uint16_t* value)
 {
 	if (strlen(argument) > 2) {
 		char c0 = argument[0];
@@ -222,12 +222,12 @@ bool IsUInt16Flag(char flag, char* argument, uint16_t u2min, uint16_t u2max, uin
 			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
 				uint16_t parsed;
 				if (sscanf((argument + 2), "%hu", &parsed)) {
-					if (parsed < u2min) {
-						*value = u2min;
-						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2min);
-					} else if (parsed > u2max) {
-						*value = u2max;
-						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2max);
+					if (parsed < u2Min) {
+						*value = u2Min;
+						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2Min);
+					} else if (parsed > u2Max) {
+						*value = u2Max;
+						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2Max);
 					} else {
 						*value = parsed;
 					}
@@ -604,7 +604,7 @@ int main(int argc, char* argv[])
 			puts("Public Symbols Defined:");
 			// FIXME : In original ArgLink, symbol output is sorted by symbol name
 			hti kvp = ht_iterator(link); while (ht_next(&kvp)) {
-				printf("FILE: %-17s -- SYMBOL: %-30s -- VALUE: %6X\n", ((LinkData*)kvp.value)->Origin, kvp.key, ((LinkData*)kvp.value)->Value);
+				printf("FILE: %-17s -- SYMBOL: %-30s -- VALUE: %6" PRIX32 "\n", ((LinkData*)kvp.value)->Origin, kvp.key, ((LinkData*)kvp.value)->Value);
 			}
 		}
 
