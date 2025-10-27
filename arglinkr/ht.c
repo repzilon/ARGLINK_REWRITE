@@ -3,8 +3,13 @@
 #include "ht.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
+
+#define STRINGIZE_DETAIL(x) #x
+#define STRINGIZE(x) STRINGIZE_DETAIL(x)
 
 // Hash table entry (slot may be filled or empty).
 typedef struct {
@@ -22,22 +27,25 @@ struct ht {
 ht* ht_create(size_t initialCapacity)
 {
     if (initialCapacity <= 0) {
-        return NULL;
+        puts("ht error: initialCapacity is less than 1, source code line " STRINGIZE(__LINE__));
+        exit(EX_SOFTWARE);
     }
 
     // Allocate space for hash table struct.
     ht* table = (ht*)calloc(1, sizeof(ht));
     if (table == NULL) {
-        return NULL;
+        puts("ht error: cannot allocate header, source code line " STRINGIZE(__LINE__));
+        exit(EX_SOFTWARE);
     }
     table->length = 0;
     table->capacity = initialCapacity;
 
-    // Allocate (zero'd) space for entry buckets.
+    // Allocate (zeroed) space for entry buckets.
     table->entries = (ht_entry*)calloc(table->capacity, sizeof(ht_entry));
     if (table->entries == NULL) {
         free(table); // error, free table before we return!
-        return NULL;
+        puts("ht error: cannot allocate initial empty entries, source code line " STRINGIZE(__LINE__));
+        exit(EX_SOFTWARE);
     }
     return table;
 }
@@ -66,7 +74,7 @@ static uint64_t hash_key(const char* key)
     return hash;
 }
 
-void* ht_get(ht* table, const char* key)
+void* ht_get(const ht* table, const char* key)
 {
     // AND hash with capacity-1 to ensure it's within entries array.
     uint64_t hash = hash_key(key);
@@ -114,7 +122,8 @@ static const char* ht_set_entry(ht_entry* entries, size_t capacity, const char* 
     if (plength != NULL) {
         key = strdup(key);
         if (key == NULL) {
-            return NULL;
+            puts("ht error: cannot allocate key for new entry, source code line " STRINGIZE(__LINE__));
+            exit(EX_SOFTWARE);
         }
         (*plength)++;
     }
@@ -160,14 +169,15 @@ const char* ht_set(ht* table, const char* key, void* value)
 
     // If length will exceed three quarters of current capacity, expand it.
     if ((table->length >= table->capacity / 4 * 3) && (!ht_expand(table))) {
-        return NULL;
+        puts("ht error: cannot expand capacity, source code line " STRINGIZE(__LINE__));
+        exit(EX_SOFTWARE);
     }
 
     // Set entry and update length.
     return ht_set_entry(table->entries, table->capacity, key, value, &table->length);
 }
 
-size_t ht_length(ht* table)
+size_t ht_length(const ht* table)
 {
     return table->length;
 }

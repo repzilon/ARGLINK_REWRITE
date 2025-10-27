@@ -1,7 +1,7 @@
 // Simple hash table implemented in C.
 
-#ifndef _HT_H
-#define _HT_H
+#ifndef HT_H
+#define HT_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -17,7 +17,7 @@ void ht_destroy(ht* table);
 
 // Get item with given key (NUL-terminated) from hash table. Return
 // value (which was set with ht_set), or NULL if key not found.
-void* ht_get(ht* table, const char* key);
+void* ht_get(const ht* table, const char* key);
 
 // Set item with given key (NUL-terminated) to value (which must not
 // be NULL). If not already present in table, key is copied to newly
@@ -26,7 +26,7 @@ void* ht_get(ht* table, const char* key);
 const char* ht_set(ht* table, const char* key, void* value);
 
 // Return number of items in hash table.
-size_t ht_length(ht* table);
+size_t ht_length(const ht* table);
 
 // Hash table iterator: create with ht_iterator, iterate with ht_next.
 typedef struct {
@@ -46,4 +46,4 @@ hti ht_iterator(ht* table);
 // items, return false. Don't call ht_set during iteration.
 bool ht_next(hti* it);
 
-#endif // _HT_H
+#endif // HT_H
