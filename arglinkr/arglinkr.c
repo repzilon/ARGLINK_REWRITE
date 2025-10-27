@@ -550,7 +550,6 @@ int main(int argc, char* argv[])
 		puts("ArgLink error: no ROM file was specified.");
 		return (int32_t)BadCLIUsage;
 	} else {
-		FILE* fileSob;
 		FILE* fileOut = fopen(romFile, "wb"); if (fileOut == NULL) { puts("ArgLink error: cannot open romFile in Write mode, source code line " STRINGIZE(__LINE__)); exit(73); }; size_t fileOutZone = (size_t)(s_ioBuffersKiB * 1024); char* fileOutBuffer = (fileOutZone > 0) ? (char*)calloc(fileOutZone, sizeof(char)) : NULL; setvbuf(fileOut, fileOutBuffer, fileOutBuffer ? _IOFBF : _IONBF, fileOutZone);
 		// Fill Output file to 1 MiB
 		puts("Constructing ROM Image.");
@@ -575,7 +574,7 @@ int main(int argc, char* argv[])
 
 				//Check if SOB file is indeed a SOB file
 				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
-				fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
+				FILE* fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
 				if (SOBJWasRead(fileSob)) {

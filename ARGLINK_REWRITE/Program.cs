@@ -566,7 +566,6 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 				Console.WriteLine("ArgLink error: no ROM file was specified.");
 				return (int)BSDExitCodes.BadCLIUsage;
 			} else {
-				BinaryReader fileSob;
 				BinaryWriter fileOut = new BinaryWriter(new FileStream(romFile, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, s_ioBuffersKiB * 1024));
 				// Fill Output file to 1 MiB
 				Console.WriteLine("Constructing ROM Image.");
@@ -591,7 +590,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 
 						//Check if SOB file is indeed a SOB file
 						sobjFile = AppendExtensionIfAbsent(args[idx]);
-						fileSob  = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
+						BinaryReader fileSob = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 						LuigiFormat("Open {0}", sobjFile);
 						fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
 						if (SOBJWasRead(fileSob)) {
