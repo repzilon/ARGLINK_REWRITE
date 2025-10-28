@@ -43,10 +43,8 @@ namespace ARGLINK_REWRITE
 		// ReSharper disable InconsistentNaming
 		private static byte s_ioBuffersKiB = 10;
 		private static string s_defaultExtension = ".SOB";
-		private static ushort s_fabcardPort = 0x290;
 		private static ushort s_stringHashSize = 256;
 		private static byte s_memoryMiB = 2;
-		private static ushort s_printerPort = 0x378;
 		private static byte s_romType = 0x7D;
 
 		private static bool s_verbose; // = false;
@@ -85,15 +83,15 @@ Ignored Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
 ** -A2		- Download to ADS SuperChild2 hardware.
 ** -D		- Download to ramboy.
+** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -N		- Download to Nintendo Emulation system.
+** -P<addr>	- Set Printer port address (in hex), default = 0x378.
 ** -Y		- Use secondary ADS backplane CIC.
 
 ** Unimplemented Options are:
-** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -I		- Display file information while loading.
 ** -L<size>	- Display used ROM layout (size is in KiB).
 ** -M<size>	- Memory size, default = 2 (mebibytes).
-** -P<addr>	- Set Printer port address (in hex), default = 0x378.
 ** -R		- Display ROM block information.
 ** -T<type>	- Set ROM type (in hex), default = 0x7D.
 ** -W<prefix>	- Set prefix (Work directory) for object files.
@@ -254,6 +252,23 @@ Ignored Options are:
 			}
 
 			value = 0;
+			return false;
+		}
+
+		private static bool IsIgnoredFlag(char flag, string argument)
+		{
+			if (argument.Length >= 2) {
+				char c0 = argument[0];
+				if ((c0 == '-') || (c0 == '/')) {
+					char c1   = argument[1];
+					bool isIt = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
+					if (isIt) {
+						Console.WriteLine("ArgLink warning: ignoring -{0} option for compatibility", flag);
+					}
+					return isIt;
+				}
+			}
+
 			return false;
 		}
 
@@ -548,19 +563,22 @@ Ignored Options are:
 				} else if (IsByteFlag('A', args[idx], 1, 2, out parsedU8)) {
 					areSobs[idx] = false;
 					totalSobs--;
-					Console.WriteLine("ArgLink warning: ignoring -{0} flag (value {1}) for compatibility", 'A', parsedU8);
-				} else if (IsSimpleFlag('D', args[idx])) {
+					Console.WriteLine("ArgLink warning: ignoring -{0} option (value {1}) for compatibility", 'A', parsedU8);
+				} else if (IsIgnoredFlag('D', args[idx])) {
 					areSobs[idx] = false;
 					totalSobs--;
-					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'D');
-				} else if (IsSimpleFlag('N', args[idx])) {
+				} else if (IsIgnoredFlag('N', args[idx])) {
 					areSobs[idx] = false;
 					totalSobs--;
-					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'N');
-				} else if (IsSimpleFlag('Y', args[idx])) {
+				} else if (IsIgnoredFlag('Y', args[idx])) {
 					areSobs[idx] = false;
 					totalSobs--;
-					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'Y');
+				} else if (IsIgnoredFlag('F', args[idx])) {
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsIgnoredFlag('P', args[idx])) {
+					areSobs[idx] = false;
+					totalSobs--;
 				} else {
 					areSobs[idx] = true;
 				}

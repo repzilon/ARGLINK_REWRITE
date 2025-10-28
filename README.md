@@ -39,14 +39,14 @@ Exit codes follow the recommendations of the BSD style guide and defined in ``sy
 |    Yes    | -C           | Duplicate public warnings on.                           |
 |     -     | -D           | Download to ramboy.                                     |
 |    Yes    | -E\<.ext>    | Change default file extension, default = '.SOB'.        |
-|           | -F\<addr>    | Set Fabcard port address (in hex), default = 0x290.     |
+|     -     | -F\<addr>    | Set Fabcard port address (in hex), default = 0x290.     |
 |    Yes    | -H\<size>    | String hash size, default = 256.                        |
 |           | -I           | Display file information while loading.                 |
 |           | -L\<size>    | Display used ROM layout (size is in KiB).               |
 |           | -M\<size>    | Memory size, default = 2 (mebibytes).                   |
 |     -     | -N           | Download to Nintendo Emulation system.                  |
 |    Yes    | -O\<romfile> | Output a ROM file.                                      |
-|           | -P\<addr>    | Set Printer port address (in hex), default = 0x378.     |
+|     -     | -P\<addr>    | Set Printer port address (in hex), default = 0x378.     |
 |           | -R           | Display ROM block information.                          |
 |    Yes    | -S           | Display all public symbols.                             |
 |           | -T\<type>    | Set ROM type (in hex), default = 0x7D.                  |
