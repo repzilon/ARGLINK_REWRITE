@@ -116,6 +116,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = TranslateSpecificCalls(strCleaned);
 					strCleaned = TranslateHashtableMethods(strCleaned);
 
+					strCleaned = ConstifyFunctionPrototypes(strCleaned);
+
 					// Write C code
 					strCleaned = strCleaned.Trim().Replace("\r\n", "\n").Replace('\r', '\n'); // Normalize to LF
 					strCleaned = strCleaned.Replace("\n\n\n", "\n\n");                        // Coalesce white space
@@ -867,6 +869,18 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return QuickFormat("{0} = ht_create({1})", g[1].Value, String.IsNullOrEmpty(capacity) ? "16" : capacity);
 		}
 		#endregion
+
+		private static string ConstifyFunctionPrototypes(string toConstify)
+		{
+			toConstify = toConstify.Replace("LuigiOut(char* text)", "LuigiOut(const char* text)");
+			toConstify = Regex.Replace(toConstify,
+				@"(bool Is([A-Za-z0-9]+)Flag[(]char flag), (char[*] argument)(?!.*([*][*]))",
+				"$1, const $3");
+			toConstify = toConstify.Replace("ExtensionOf(char* path)", "ExtensionOf(const char* path)");
+			toConstify = toConstify.Replace("PerformLink(ht* link, char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n)",
+				"PerformLink(const ht* link, char* sobjFile, FILE* fileOut, const int64_t startLink[], int32_t n)");
+			return toConstify;
+		}
 
 		private static string QuickFormat(string format, string arg0, string arg1)
 		{

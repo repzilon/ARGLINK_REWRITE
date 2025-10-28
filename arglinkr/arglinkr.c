@@ -139,7 +139,7 @@ void Recopy(FILE* source, size_t size, FILE* destination, int32_t offset)
 }
 
 #pragma mark - Verbose output
-void LuigiOut(char* text)
+void LuigiOut(const char* text)
 {
 	if (s_verbose) {
 		fputs(text, stderr);fputs("\n", stderr);
@@ -154,7 +154,7 @@ void LuigiFormat(char* format, ...)
 }
 
 #pragma mark - Command line parsing
-bool IsSimpleFlag(char flag, char* argument)
+bool IsSimpleFlag(char flag, const char* argument)
 {
 	if (strlen(argument) == 2) {
 		char c0 = argument[0];
@@ -184,7 +184,7 @@ bool IsStringFlag(char flag, char* argument, char** value)
 	return false;
 }
 
-bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* value)
+bool IsByteFlag(char flag, const char* argument, uint8_t min, uint8_t max, uint8_t* value)
 {
 	if (strlen(argument) > 2) {
 		char c0 = argument[0];
@@ -213,7 +213,7 @@ bool IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* va
 	return false;
 }
 
-bool IsUInt16Flag(char flag, char* argument, uint16_t u2Min, uint16_t u2Max, uint16_t* value)
+bool IsUInt16Flag(char flag, const char* argument, uint16_t u2Min, uint16_t u2Max, uint16_t* value)
 {
 	if (strlen(argument) > 2) {
 		char c0 = argument[0];
@@ -242,7 +242,7 @@ bool IsUInt16Flag(char flag, char* argument, uint16_t u2Min, uint16_t u2Max, uin
 	return false;
 }
 
-char* ExtensionOf(char* path)
+char* ExtensionOf(const char* path)
 {
 	char* dot = strrchr(path, '.'); return (!dot || dot == path) ? NULL : dot;
 }
@@ -311,7 +311,7 @@ void InputSobStepTwo(ht* link, char* sobjName, FILE* fileSob, bool duplicateWarn
 	} while (fgetc(fileSob) == 0);
 }
 
-void PerformLink(ht* link, char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n)
+void PerformLink(const ht* link, char* sobjFile, FILE* fileOut, const int64_t startLink[], int32_t n)
 {
 	FILE* fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 	fseek(fileSob, 0, SEEK_END); int64_t fileSize = ftell(fileSob);
