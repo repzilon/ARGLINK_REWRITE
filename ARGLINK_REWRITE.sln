@@ -11,7 +11,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "arglinkr", "arglinkr\arglin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassifySobjStrings", "ClassifySobjStrings\ClassifySobjStrings.csproj", "{B31BB3E0-E25B-4FC0-B562-2CBAA654B6AB}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{BA1FE034-0EB1-4E88-BEFD-B1416DD4CF2A}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{831BB9BE-2E80-45F6-8635-A64363CBDE6B}"
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
 	EndProjectSection
