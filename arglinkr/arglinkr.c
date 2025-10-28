@@ -69,20 +69,22 @@ void OutputUsage()
 "** -V\t\t- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.\n"
 "** -X<file>\t- Export public symbols to a text file, one per line\n"
 "\n"
-"** Unimplemented Options are:\n"
+"Ignored Options are:\n"
 "** -A1\t\t- Download to ADS SuperChild1 hardware.\n"
 "** -A2\t\t- Download to ADS SuperChild2 hardware.\n"
 "** -D\t\t- Download to ramboy.\n"
+"** -N\t\t- Download to Nintendo Emulation system.\n"
+"** -Y\t\t- Use secondary ADS backplane CIC.\n"
+"\n"
+"** Unimplemented Options are:\n"
 "** -F<addr>\t- Set Fabcard port address (in hex), default = 0x290.\n"
 "** -I\t\t- Display file information while loading.\n"
 "** -L<size>\t- Display used ROM layout (size is in KiB).\n"
 "** -M<size>\t- Memory size, default = 2 (mebibytes).\n"
-"** -N\t\t- Download to Nintendo Emulation system.\n"
 "** -P<addr>\t- Set Printer port address (in hex), default = 0x378.\n"
 "** -R\t\t- Display ROM block information.\n"
 "** -T<type>\t- Set ROM type (in hex), default = 0x7D.\n"
 "** -W<prefix>\t- Set prefix (Work directory) for object files.\n"
-"** -Y\t\t- Use secondary ADS backplane CIC.\n"
 "** -Z\t\t- Generate a debugger MAP file.\n"
 );
 }
@@ -527,6 +529,22 @@ int main(int argc, char* argv[])
 			warnDupes = true;
 			areSobs[idx] = false;
 			totalSobs--;
+		} else if (IsByteFlag('A', argv[1 + idx], 1, 2, &parsedU8)) {
+			areSobs[idx] = false;
+			totalSobs--;
+			printf("ArgLink warning: ignoring -%c flag (value %hhu) for compatibility\n", 'A', parsedU8);
+		} else if (IsSimpleFlag('D', argv[1 + idx])) {
+			areSobs[idx] = false;
+			totalSobs--;
+			printf("ArgLink warning: ignoring -%c flag for compatibility\n", 'D');
+		} else if (IsSimpleFlag('N', argv[1 + idx])) {
+			areSobs[idx] = false;
+			totalSobs--;
+			printf("ArgLink warning: ignoring -%c flag for compatibility\n", 'N');
+		} else if (IsSimpleFlag('Y', argv[1 + idx])) {
+			areSobs[idx] = false;
+			totalSobs--;
+			printf("ArgLink warning: ignoring -%c flag for compatibility\n", 'Y');
 		} else {
 			areSobs[idx] = true;
 		}

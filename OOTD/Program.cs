@@ -397,7 +397,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 		private static string ReformatArgumentCore(string extracted, bool addNewLine)
 		{
-			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_.\]\[""]+)");
+			var mtcItems = Regex.Matches(extracted, @",\s+([A-Za-z0-9_.\]\[""']+)");
 			var strReformatted = Regex.Replace(extracted, @"[{](\d+)(.*?)[}]",
 				m2 => ConvertFormatSpecifier(m2, mtcItems));
 			if (addNewLine && strReformatted.Trim().EndsWith(");", StringComparison.Ordinal)) {
@@ -426,9 +426,9 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			} else {
 				var position = Byte.Parse(g[1].Value);
 				var item     = itemsToFormat[position].Groups[1].Value;
-				if (item == "flag") { // char
+				if ((item[0] == '\'') || (item == "flag")) { // char
 					return "%c";
-				} else if ((item == "min") || (item == "max")) { // uint8_t
+				} else if ((item == "min") || (item == "max") || (item == "parsedU8")) { // uint8_t
 					return "%hhu";
 				} else if ((item == "u2min") || (item == "u2max") || (item == "u2Min") || (item == "u2Max")) { // uint16_t
 					return "%hu";

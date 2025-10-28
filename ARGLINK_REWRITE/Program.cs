@@ -81,20 +81,22 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -V		- Turn on LuigiBlood's ARGLINK_REWRITE output to std. error.
 ** -X<file>	- Export public symbols to a text file, one per line
 
-** Unimplemented Options are:
+Ignored Options are:
 ** -A1		- Download to ADS SuperChild1 hardware.
 ** -A2		- Download to ADS SuperChild2 hardware.
 ** -D		- Download to ramboy.
+** -N		- Download to Nintendo Emulation system.
+** -Y		- Use secondary ADS backplane CIC.
+
+** Unimplemented Options are:
 ** -F<addr>	- Set Fabcard port address (in hex), default = 0x290.
 ** -I		- Display file information while loading.
 ** -L<size>	- Display used ROM layout (size is in KiB).
 ** -M<size>	- Memory size, default = 2 (mebibytes).
-** -N		- Download to Nintendo Emulation system.
 ** -P<addr>	- Set Printer port address (in hex), default = 0x378.
 ** -R		- Display ROM block information.
 ** -T<type>	- Set ROM type (in hex), default = 0x7D.
 ** -W<prefix>	- Set prefix (Work directory) for object files.
-** -Y		- Use secondary ADS backplane CIC.
 ** -Z		- Generate a debugger MAP file.");
 		}
 
@@ -543,6 +545,22 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 					warnDupes    = true;
 					areSobs[idx] = false;
 					totalSobs--;
+				} else if (IsByteFlag('A', args[idx], 1, 2, out parsedU8)) {
+					areSobs[idx] = false;
+					totalSobs--;
+					Console.WriteLine("ArgLink warning: ignoring -{0} flag (value {1}) for compatibility", 'A', parsedU8);
+				} else if (IsSimpleFlag('D', args[idx])) {
+					areSobs[idx] = false;
+					totalSobs--;
+					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'D');
+				} else if (IsSimpleFlag('N', args[idx])) {
+					areSobs[idx] = false;
+					totalSobs--;
+					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'N');
+				} else if (IsSimpleFlag('Y', args[idx])) {
+					areSobs[idx] = false;
+					totalSobs--;
+					Console.WriteLine("ArgLink warning: ignoring -{0} flag for compatibility", 'Y');
 				} else {
 					areSobs[idx] = true;
 				}
