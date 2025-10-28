@@ -18,10 +18,10 @@ clean: clean-managed clean-msvc
 	$(MAKE) -C arglinkr clean
 
 distclean: clean-managed clean-msvc
-	$(MAKE) -C arglinkr distclean
 	rm -rf arglinkr/ht-master
 	rm -rf arglinkr/.idea
 	rm -f */*.bak
+	$(MAKE) -C arglinkr distclean
 
 mrproper: distclean
 	rm -f */*.user
@@ -30,6 +30,8 @@ mrproper: distclean
 	rm -f .DS_Store
 	rm -f */.DS_Store
 	rm -rf .vs
+	rm -rf ARGLINK_REWRITE/.idea
+	rm -rf ARGLINK_REWRITE/.vs
 
 help:
 	@echo "Available targets: clean distclean mrproper"
