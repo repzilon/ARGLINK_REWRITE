@@ -104,7 +104,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 					strCleaned = RedeclareEnums(strCleaned);
 					strCleaned = ReplaceDataTypeOfVariables(strCleaned);
 					strCleaned = ConvertParamArrayArguments(strCleaned);
-					strCleaned = ConvertOutArguments(strCleaned);
+					strCleaned = ConvertOutRefArguments(strCleaned);
 					strCleaned = Regex.Replace(strCleaned, @"([A-Za-z0-9*_]+)\[\]\s+([A-Za-z0-9_]+)", "$1 $2[]");
 					strCleaned = ConvertVerbatimStrings(strCleaned);
 					strCleaned = TranslateConsoleOutputCalls(strCleaned);
@@ -259,17 +259,17 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
-		#region ConvertOutArguments
-		private static string ConvertOutArguments(string translating)
+		#region ConvertOutRefArguments
+		private static string ConvertOutRefArguments(string translating)
 		{
 			// Function signature: "$1* $2"
 			var lstOutVars = new List<Match>();
-			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)",
-				m => ConvertOutSignature(m, lstOutVars));
+			translating = Regex.Replace(translating, @"(?:out|ref)\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)",
+				m => ConvertOutRefSignature(m, lstOutVars));
 			// Usage
-			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_]+)", "&$1");
+			translating = Regex.Replace(translating, @"(?:out|ref)\s+([A-Za-z0-9_]+)", "&$1");
 			// Value assignment
-			var me = new MatchEvaluator(ConvertOutAssign);
+			var me = new MatchEvaluator(ConvertOutRefAssign);
 			foreach (var m2 in lstOutVars) {
 				if (m2.Groups[1].Value != "char*") {
 					translating = Regex.Replace(translating, "(" + m2.Groups[2].Value + @")\s+=\s+(.+?);", me);
@@ -281,14 +281,14 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			return translating;
 		}
 
-		private static string ConvertOutSignature(Match m, List<Match> lstOutVars)
+		private static string ConvertOutRefSignature(Match m, List<Match> lstOutVars)
 		{
 			var g = m.Groups;
 			lstOutVars.Add(m);
 			return g[1].Value + "* " + g[2].Value;
 		}
 
-		private static string ConvertOutAssign(Match m3)
+		private static string ConvertOutRefAssign(Match m3)
 		{
 			var g3 = m3.Groups;
 			return QuickFormat("*({0}) = {1};", g3[1].Value, g3[2].Value);

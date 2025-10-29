@@ -37,6 +37,13 @@ namespace ARGLINK_REWRITE
 		BadCLIUsage = 64
 	}
 
+	internal enum OptionResult : byte
+	{
+		Absent = 0,
+		NotValid = 1,
+		Valid = 2
+	}
+
 	internal static class Program
 	{
 		// Default values as stated in usage text
@@ -167,22 +174,24 @@ Ignored Options are:
 		#endregion
 
 		#region Command line parsing
-		private static bool IsPositiveFlag(char flag, string argument, out bool optionVariable)
+		private static bool IsPositiveFlag(char flag, string argument, ref bool optionVariable)
 		{
 			if (argument.Length == 2) {
 				char c0 = argument[0];
 				if ((c0 == '-') || (c0 == '/')) {
 					char c1 = argument[1];
-					optionVariable = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
-					return optionVariable;
+					bool isIt = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
+					if (isIt) {
+						optionVariable = true;
+					}
+					return isIt;
 				}
 			}
 
-			optionVariable = false;
 			return false;
 		}
 
-		private static bool IsStringFlag(char flag, string argument, out string value)
+		private static bool IsStringFlag(char flag, string argument, ref string value)
 		{
 			if (argument.Length > 2) {
 				char c0 = argument[0];
@@ -195,66 +204,77 @@ Ignored Options are:
 				}
 			}
 
-			value = null;
 			return false;
 		}
 
-		private static bool IsByteFlag(char flag, string argument, byte min, byte max, out byte value)
+		private static OptionResult IsByteFlag(char flag, string argument, byte min, byte max, ref byte value)
 		{
-			if (argument.Length > 2) {
+			if (argument.Length >= 2) {
 				char c0 = argument[0];
 				if ((c0 == '-') || (c0 == '/')) {
 					char c1 = argument[1];
 					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
 						byte parsed;
-						if (Byte.TryParse(argument.Substring(2), out parsed)) {
+						// The first condition is for C
+						if (argument.Length <= 2) {
+							Console.WriteLine("ArgLink warning: option -{0} used with an empty value.", flag);
+							return OptionResult.NotValid;
+						} else if (Byte.TryParse(argument.Substring(2), out parsed)) {
 							if (parsed < min) {
 								value = min;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, min);
+								Console.WriteLine("ArgLink warning: option -{0} set to {1}.", flag, min);
 							} else if (parsed > max) {
 								value = max;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, max);
+								Console.WriteLine("ArgLink warning: option -{0} set to {1}.", flag, max);
 							} else {
 								value = parsed;
 							}
 
-							return true;
+							return OptionResult.Valid;
+						} else {
+							Console.WriteLine("ArgLink warning: option -{0} used with a non-valid value.", flag);
+							return OptionResult.NotValid;
 						}
 					}
 				}
 			}
 
-			value = 0;
-			return false;
+			return OptionResult.Absent;
 		}
 
-		private static bool IsUInt16Flag(char flag, string argument, ushort u2Min, ushort u2Max, out ushort value)
+		private static OptionResult IsUInt16Flag(char flag, string argument, ushort u2Min, ushort u2Max, ref ushort value)
 		{
-			if (argument.Length > 2) {
+			if (argument.Length >= 2) {
 				char c0 = argument[0];
 				if ((c0 == '-') || (c0 == '/')) {
 					char c1 = argument[1];
 					if ((c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag))) {
 						ushort parsed;
-						if (UInt16.TryParse(argument.Substring(2), out parsed)) {
+						// The first condition is for C
+						if (argument.Length <= 2) {
+							Console.WriteLine("ArgLink warning: option -{0} used with an empty value.", flag);
+							return OptionResult.NotValid;
+						} else if (UInt16.TryParse(argument.Substring(2), out parsed)) {
 							if (parsed < u2Min) {
 								value = u2Min;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2Min);
+								Console.WriteLine("ArgLink warning: option -{0} set to {1}.", flag, u2Min);
 							} else if (parsed > u2Max) {
 								value = u2Max;
-								Console.WriteLine("ArgLink warning: switch -{0} set to {1}", flag, u2Max);
+								Console.WriteLine("ArgLink warning: option -{0} set to {1}.", flag, u2Max);
 							} else {
 								value = parsed;
 							}
 
-							return true;
+							return OptionResult.Valid;
+						} else {
+							Console.WriteLine("ArgLink warning: option -{0} used with a non-valid value.", flag);
+							return OptionResult.NotValid;
 						}
 					}
 				}
 			}
 
-			value = 0;
-			return false;
+			return OptionResult.Absent;
 		}
 
 		private static bool IsIgnoredFlag(char flag, string argument)
@@ -265,7 +285,7 @@ Ignored Options are:
 					char c1   = argument[1];
 					bool isIt = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
 					if (isIt) {
-						Console.WriteLine("ArgLink warning: ignoring -{0} option for compatibility", flag);
+						Console.WriteLine("ArgLink warning: ignoring -{0} option for compatibility.", flag);
 					}
 					return isIt;
 				}
@@ -510,31 +530,39 @@ Ignored Options are:
 			int    idx;
 			bool[] areSobs     = new bool[args.Length];
 			int    totalSobs   = args.Length;
+			string what;
 			bool   hideLogo    = false;
 			bool   showPublics = false;
 			bool   warnDupes   = false;
 			string romFile     = null;
 			string pubsPath    = null;
-			string what;
 			string passed;
 			byte   parsedU8;
 			ushort parsedU16;
+
+			// Fist pass only for the hideLogo switch, so any command line warning is shown after the logo
+			for (idx = 0; idx < args.Length; idx++) {
+				IsPositiveFlag('Q', args[idx], ref hideLogo);
+				areSobs[idx] = true;
+			}
+			if (!hideLogo) {
+				OutputLogo();
+			}
+
 			for (idx = 0; idx < args.Length; idx++) {
 				// ReSharper disable once RedundantAssignment
-				passed = null;
-				what   = args[idx];
-				if (IsPositiveFlag('V', what, out s_verbose) || IsPositiveFlag('Q', what, out hideLogo) ||
-					IsPositiveFlag('S', what, out showPublics) || IsPositiveFlag('C', what, out warnDupes)) {
+				passed    = null;
+				parsedU8  = 0;
+				parsedU16 = 0;
+				what      = args[idx];
+				if (IsPositiveFlag('V', what, ref s_verbose) || IsPositiveFlag('Q', what, ref hideLogo) ||
+					IsPositiveFlag('S', what, ref showPublics) || IsPositiveFlag('C', what, ref warnDupes) ||
+					IsStringFlag('O', what, ref romFile) || IsStringFlag('X', what, ref pubsPath) ||
+					IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
+					IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
 					areSobs[idx] = false;
 					totalSobs--;
-				} else if (IsStringFlag('O', what, out romFile) || IsStringFlag('X', what, out pubsPath)) {
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsByteFlag('B', what, 0, 31, out parsedU8)) {
-					s_ioBuffersKiB = parsedU8;
-					areSobs[idx]   = false;
-					totalSobs--;
-				} else if (IsStringFlag('E', what, out passed)) {
+				} else if (IsStringFlag('E', what, ref passed)) {
 					if ((passed != null) && (passed.Length >= 2) && (passed[0] == '.')) {
 						s_defaultExtension = passed;
 					} else {
@@ -543,25 +571,32 @@ Ignored Options are:
 
 					areSobs[idx] = false;
 					totalSobs--;
-				} else if (IsUInt16Flag('H', what, 16, 65535, out parsedU16)) {
-					s_stringHashSize = parsedU16;
-					areSobs[idx]     = false;
-					totalSobs--;
-				} else if (IsByteFlag('A', what, 1, 2, out parsedU8)) {
-					areSobs[idx] = false;
-					totalSobs--;
-					Console.WriteLine("ArgLink warning: ignoring -{0} option (value {1}) for compatibility", 'A', parsedU8);
-				} else if (IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
-						   IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
-					areSobs[idx] = false;
-					totalSobs--;
 				} else {
-					areSobs[idx] = true;
-				}
-			}
+					OptionResult status = IsByteFlag('B', what, 0, 31, ref parsedU8);
+					if (status == OptionResult.Valid) {
+						s_ioBuffersKiB = parsedU8;
+					}
+					if (status != OptionResult.Absent) {
+						areSobs[idx] = false;
+						totalSobs--;
+					}
 
-			if (!hideLogo) {
-				OutputLogo();
+					status = IsUInt16Flag('H', what, 16, 65535, ref parsedU16);
+					if (status == OptionResult.Valid) {
+						s_stringHashSize = parsedU16;
+					}
+					if (status != OptionResult.Absent) {
+						areSobs[idx] = false;
+						totalSobs--;
+					}
+
+					status = IsByteFlag('A', what, 1, 2, ref parsedU8);
+					if (status != OptionResult.Absent) {
+						Console.WriteLine("ArgLink warning: ignoring -{0} option (value {1}) for compatibility.", 'A', parsedU8);
+						areSobs[idx] = false;
+						totalSobs--;
+					}
+				}
 			}
 
 			if (s_verbose) {

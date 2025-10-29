@@ -28,6 +28,12 @@ typedef enum {
 	BadCLIUsage = 64
 } BSDExitCodes;
 
+typedef enum {
+	Absent = 0,
+	NotValid = 1,
+	Valid = 2
+} OptionResult;
+
 // Default values as stated in usage text
 uint8_t s_ioBuffersKiB = 10;
 char* s_defaultExtension = ".SOB";
@@ -160,12 +166,14 @@ bool IsPositiveFlag(char flag, const char* argument, bool* optionVariable)
 		char c0 = argument[0];
 		if ((c0 == '-') || (c0 == '/')) {
 			char c1 = argument[1];
-			*optionVariable = (c1 == toupper(flag)) || (c1 == tolower(flag));
-			return optionVariable;
+			bool isIt = (c1 == toupper(flag)) || (c1 == tolower(flag));
+			if (isIt) {
+				*optionVariable = true;
+			}
+			return isIt;
 		}
 	}
 
-	*optionVariable = false;
 	return false;
 }
 
@@ -182,66 +190,77 @@ bool IsStringFlag(char flag, char* argument, char** value)
 		}
 	}
 
-	*value = NULL;
 	return false;
 }
 
-bool IsByteFlag(char flag, const char* argument, uint8_t min, uint8_t max, uint8_t* value)
+OptionResult IsByteFlag(char flag, char* argument, uint8_t min, uint8_t max, uint8_t* value)
 {
-	if (strlen(argument) > 2) {
+	if (strlen(argument) >= 2) {
 		char c0 = argument[0];
 		if ((c0 == '-') || (c0 == '/')) {
 			char c1 = argument[1];
 			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
 				uint8_t parsed;
-				if (sscanf((argument + 2), "%hhu", &parsed)) {
+				// The first condition is for C
+				if (strlen(argument) <= 2) {
+					printf("ArgLink warning: option -%c used with an empty value.\n", flag);
+					return NotValid;
+				} else if (sscanf((argument + 2), "%hhu", &parsed)) {
 					if (parsed < min) {
 						*value = min;
-						printf("ArgLink warning: switch -%c set to %hhu\n", flag, min);
+						printf("ArgLink warning: option -%c set to %hhu.\n", flag, min);
 					} else if (parsed > max) {
 						*value = max;
-						printf("ArgLink warning: switch -%c set to %hhu\n", flag, max);
+						printf("ArgLink warning: option -%c set to %hhu.\n", flag, max);
 					} else {
 						*value = parsed;
 					}
 
-					return true;
+					return Valid;
+				} else {
+					printf("ArgLink warning: option -%c used with a non-valid value.\n", flag);
+					return NotValid;
 				}
 			}
 		}
 	}
 
-	*value = 0;
-	return false;
+	return Absent;
 }
 
-bool IsUInt16Flag(char flag, const char* argument, uint16_t u2Min, uint16_t u2Max, uint16_t* value)
+OptionResult IsUInt16Flag(char flag, char* argument, uint16_t u2Min, uint16_t u2Max, uint16_t* value)
 {
-	if (strlen(argument) > 2) {
+	if (strlen(argument) >= 2) {
 		char c0 = argument[0];
 		if ((c0 == '-') || (c0 == '/')) {
 			char c1 = argument[1];
 			if ((c1 == toupper(flag)) || (c1 == tolower(flag))) {
 				uint16_t parsed;
-				if (sscanf((argument + 2), "%hu", &parsed)) {
+				// The first condition is for C
+				if (strlen(argument) <= 2) {
+					printf("ArgLink warning: option -%c used with an empty value.\n", flag);
+					return NotValid;
+				} else if (sscanf((argument + 2), "%hu", &parsed)) {
 					if (parsed < u2Min) {
 						*value = u2Min;
-						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2Min);
+						printf("ArgLink warning: option -%c set to %hu.\n", flag, u2Min);
 					} else if (parsed > u2Max) {
 						*value = u2Max;
-						printf("ArgLink warning: switch -%c set to %hu\n", flag, u2Max);
+						printf("ArgLink warning: option -%c set to %hu.\n", flag, u2Max);
 					} else {
 						*value = parsed;
 					}
 
-					return true;
+					return Valid;
+				} else {
+					printf("ArgLink warning: option -%c used with a non-valid value.\n", flag);
+					return NotValid;
 				}
 			}
 		}
 	}
 
-	*value = 0;
-	return false;
+	return Absent;
 }
 
 bool IsIgnoredFlag(char flag, const char* argument)
@@ -252,7 +271,7 @@ bool IsIgnoredFlag(char flag, const char* argument)
 			char c1 = argument[1];
 			bool isIt = (c1 == toupper(flag)) || (c1 == tolower(flag));
 			if (isIt) {
-				printf("ArgLink warning: ignoring -%c option for compatibility\n", flag);
+				printf("ArgLink warning: ignoring -%c option for compatibility.\n", flag);
 			}
 			return isIt;
 		}
@@ -495,27 +514,35 @@ int main(int argc, char* argv[])
 	int32_t idx;
 	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool)); if (areSobs == NULL) { puts("ArgLink error: cannot allocate for areSobs of type bool*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	int32_t totalSobs = (argc - 1);
+	char* what;
 	bool hideLogo = false;
 	bool showPublics = false;
 	bool warnDupes = false;
 	char* romFile = NULL;
 	char* pubsPath = NULL;
-	char* what;
 	char* passed;
 	uint8_t parsedU8;
 	uint16_t parsedU16;
+
+	// Fist pass only for the hideLogo switch, so any command line warning is shown after the logo
+	for (idx = 0; idx < (argc - 1); idx++) {
+		IsPositiveFlag('Q', argv[1 + idx], &hideLogo);
+		areSobs[idx] = true;
+	}
+	if (!hideLogo) {
+		OutputLogo();
+	}
+
 	for (idx = 0; idx < (argc - 1); idx++) {
 		passed = NULL;
+		parsedU8 = 0;
+		parsedU16 = 0;
 		what = argv[1 + idx];
 		if (IsPositiveFlag('V', what, &s_verbose) || IsPositiveFlag('Q', what, &hideLogo) ||
-			IsPositiveFlag('S', what, &showPublics) || IsPositiveFlag('C', what, &warnDupes)) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsStringFlag('O', what, &romFile) || IsStringFlag('X', what, &pubsPath)) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsByteFlag('B', what, 0, 31, &parsedU8)) {
-			s_ioBuffersKiB = parsedU8;
+			IsPositiveFlag('S', what, &showPublics) || IsPositiveFlag('C', what, &warnDupes) ||
+			IsStringFlag('O', what, &romFile) || IsStringFlag('X', what, &pubsPath) ||
+			IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
+			IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
 			areSobs[idx] = false;
 			totalSobs--;
 		} else if (IsStringFlag('E', what, &passed)) {
@@ -527,25 +554,32 @@ int main(int argc, char* argv[])
 
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsUInt16Flag('H', what, 16, 65535, &parsedU16)) {
-			s_stringHashSize = parsedU16;
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsByteFlag('A', what, 1, 2, &parsedU8)) {
-			areSobs[idx] = false;
-			totalSobs--;
-			printf("ArgLink warning: ignoring -%c option (value %hhu) for compatibility\n", 'A', parsedU8);
-		} else if (IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
-				IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
-			areSobs[idx] = false;
-			totalSobs--;
 		} else {
-			areSobs[idx] = true;
-		}
-	}
+			OptionResult status = IsByteFlag('B', what, 0, 31, &parsedU8);
+			if (status == Valid) {
+				s_ioBuffersKiB = parsedU8;
+			}
+			if (status != Absent) {
+				areSobs[idx] = false;
+				totalSobs--;
+			}
 
-	if (!hideLogo) {
-		OutputLogo();
+			status = IsUInt16Flag('H', what, 16, 65535, &parsedU16);
+			if (status == Valid) {
+				s_stringHashSize = parsedU16;
+			}
+			if (status != Absent) {
+				areSobs[idx] = false;
+				totalSobs--;
+			}
+
+			status = IsByteFlag('A', what, 1, 2, &parsedU8);
+			if (status != Absent) {
+				printf("ArgLink warning: ignoring -%c option (value %hhu) for compatibility.\n", 'A', parsedU8);
+				areSobs[idx] = false;
+				totalSobs--;
+			}
+		}
 	}
 
 	if (s_verbose) {
