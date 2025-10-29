@@ -154,16 +154,18 @@ void LuigiFormat(char* format, ...)
 }
 
 #pragma mark - Command line parsing
-bool IsSimpleFlag(char flag, const char* argument)
+bool IsPositiveFlag(char flag, const char* argument, bool* optionVariable)
 {
 	if (strlen(argument) == 2) {
 		char c0 = argument[0];
 		if ((c0 == '-') || (c0 == '/')) {
 			char c1 = argument[1];
-			return (c1 == toupper(flag)) || (c1 == tolower(flag));
+			*optionVariable = (c1 == toupper(flag)) || (c1 == tolower(flag));
+			return optionVariable;
 		}
 	}
 
+	*optionVariable = false;
 	return false;
 }
 
@@ -493,33 +495,30 @@ int main(int argc, char* argv[])
 	int32_t idx;
 	bool* areSobs = (bool*)calloc((size_t)(argc - 1), sizeof(bool)); if (areSobs == NULL) { puts("ArgLink error: cannot allocate for areSobs of type bool*, source code line " STRINGIZE(__LINE__)); exit(70); }
 	int32_t totalSobs = (argc - 1);
-	bool showLogo = true;
+	bool hideLogo = false;
 	bool showPublics = false;
 	bool warnDupes = false;
 	char* romFile = NULL;
 	char* pubsPath = NULL;
+	char* what;
 	char* passed;
 	uint8_t parsedU8;
 	uint16_t parsedU16;
 	for (idx = 0; idx < (argc - 1); idx++) {
 		passed = NULL;
-		if (IsSimpleFlag('V', argv[1 + idx])) {
-			s_verbose = true;
+		what = argv[1 + idx];
+		if (IsPositiveFlag('V', what, &s_verbose) || IsPositiveFlag('Q', what, &hideLogo) ||
+			IsPositiveFlag('S', what, &showPublics) || IsPositiveFlag('C', what, &warnDupes)) {
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsSimpleFlag('Q', argv[1 + idx])) {
-			showLogo = false;
+		} else if (IsStringFlag('O', what, &romFile) || IsStringFlag('X', what, &pubsPath)) {
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsStringFlag('O', argv[1 + idx], &passed)) {
-			romFile = passed;
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsByteFlag('B', argv[1 + idx], 0, 31, &parsedU8)) {
+		} else if (IsByteFlag('B', what, 0, 31, &parsedU8)) {
 			s_ioBuffersKiB = parsedU8;
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsStringFlag('E', argv[1 + idx], &passed)) {
+		} else if (IsStringFlag('E', what, &passed)) {
 			if ((passed != NULL) && (strlen(passed) >= 2) && (passed[0] == '.')) {
 				s_defaultExtension = passed;
 			} else {
@@ -528,39 +527,16 @@ int main(int argc, char* argv[])
 
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsStringFlag('X', argv[1 + idx], &passed)) {
-			pubsPath = passed;
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsSimpleFlag('S', argv[1 + idx])) {
-			showPublics = true;
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsUInt16Flag('H', argv[1 + idx], 16, 65535, &parsedU16)) {
+		} else if (IsUInt16Flag('H', what, 16, 65535, &parsedU16)) {
 			s_stringHashSize = parsedU16;
 			areSobs[idx] = false;
 			totalSobs--;
-		} else if (IsSimpleFlag('C', argv[1 + idx])) {
-			warnDupes = true;
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsByteFlag('A', argv[1 + idx], 1, 2, &parsedU8)) {
+		} else if (IsByteFlag('A', what, 1, 2, &parsedU8)) {
 			areSobs[idx] = false;
 			totalSobs--;
 			printf("ArgLink warning: ignoring -%c option (value %hhu) for compatibility\n", 'A', parsedU8);
-		} else if (IsIgnoredFlag('D', argv[1 + idx])) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsIgnoredFlag('N', argv[1 + idx])) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsIgnoredFlag('Y', argv[1 + idx])) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsIgnoredFlag('F', argv[1 + idx])) {
-			areSobs[idx] = false;
-			totalSobs--;
-		} else if (IsIgnoredFlag('P', argv[1 + idx])) {
+		} else if (IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
+				IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
 			areSobs[idx] = false;
 			totalSobs--;
 		} else {
@@ -568,7 +544,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (showLogo) {
+	if (!hideLogo) {
 		OutputLogo();
 	}
 

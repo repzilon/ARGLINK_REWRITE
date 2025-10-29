@@ -167,16 +167,18 @@ Ignored Options are:
 		#endregion
 
 		#region Command line parsing
-		private static bool IsSimpleFlag(char flag, string argument)
+		private static bool IsPositiveFlag(char flag, string argument, out bool optionVariable)
 		{
 			if (argument.Length == 2) {
 				char c0 = argument[0];
 				if ((c0 == '-') || (c0 == '/')) {
 					char c1 = argument[1];
-					return (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
+					optionVariable = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
+					return optionVariable;
 				}
 			}
 
+			optionVariable = false;
 			return false;
 		}
 
@@ -508,34 +510,31 @@ Ignored Options are:
 			int    idx;
 			bool[] areSobs     = new bool[args.Length];
 			int    totalSobs   = args.Length;
-			bool   showLogo    = true;
+			bool   hideLogo    = false;
 			bool   showPublics = false;
 			bool   warnDupes   = false;
 			string romFile     = null;
 			string pubsPath    = null;
+			string what;
 			string passed;
 			byte   parsedU8;
 			ushort parsedU16;
 			for (idx = 0; idx < args.Length; idx++) {
 				// ReSharper disable once RedundantAssignment
 				passed = null;
-				if (IsSimpleFlag('V', args[idx])) {
-					s_verbose    = true;
+				what   = args[idx];
+				if (IsPositiveFlag('V', what, out s_verbose) || IsPositiveFlag('Q', what, out hideLogo) ||
+					IsPositiveFlag('S', what, out showPublics) || IsPositiveFlag('C', what, out warnDupes)) {
 					areSobs[idx] = false;
 					totalSobs--;
-				} else if (IsSimpleFlag('Q', args[idx])) {
-					showLogo     = false;
+				} else if (IsStringFlag('O', what, out romFile) || IsStringFlag('X', what, out pubsPath)) {
 					areSobs[idx] = false;
 					totalSobs--;
-				} else if (IsStringFlag('O', args[idx], out passed)) {
-					romFile      = passed;
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsByteFlag('B', args[idx], 0, 31, out parsedU8)) {
+				} else if (IsByteFlag('B', what, 0, 31, out parsedU8)) {
 					s_ioBuffersKiB = parsedU8;
 					areSobs[idx]   = false;
 					totalSobs--;
-				} else if (IsStringFlag('E', args[idx], out passed)) {
+				} else if (IsStringFlag('E', what, out passed)) {
 					if ((passed != null) && (passed.Length >= 2) && (passed[0] == '.')) {
 						s_defaultExtension = passed;
 					} else {
@@ -544,39 +543,16 @@ Ignored Options are:
 
 					areSobs[idx] = false;
 					totalSobs--;
-				} else if (IsStringFlag('X', args[idx], out passed)) {
-					pubsPath     = passed;
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsSimpleFlag('S', args[idx])) {
-					showPublics  = true;
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsUInt16Flag('H', args[idx], 16, 65535, out parsedU16)) {
+				} else if (IsUInt16Flag('H', what, 16, 65535, out parsedU16)) {
 					s_stringHashSize = parsedU16;
 					areSobs[idx]     = false;
 					totalSobs--;
-				} else if (IsSimpleFlag('C', args[idx])) {
-					warnDupes    = true;
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsByteFlag('A', args[idx], 1, 2, out parsedU8)) {
+				} else if (IsByteFlag('A', what, 1, 2, out parsedU8)) {
 					areSobs[idx] = false;
 					totalSobs--;
 					Console.WriteLine("ArgLink warning: ignoring -{0} option (value {1}) for compatibility", 'A', parsedU8);
-				} else if (IsIgnoredFlag('D', args[idx])) {
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsIgnoredFlag('N', args[idx])) {
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsIgnoredFlag('Y', args[idx])) {
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsIgnoredFlag('F', args[idx])) {
-					areSobs[idx] = false;
-					totalSobs--;
-				} else if (IsIgnoredFlag('P', args[idx])) {
+				} else if (IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
+						   IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
 					areSobs[idx] = false;
 					totalSobs--;
 				} else {
@@ -584,7 +560,7 @@ Ignored Options are:
 				}
 			}
 
-			if (showLogo) {
+			if (!hideLogo) {
 				OutputLogo();
 			}
 

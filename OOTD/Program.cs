@@ -262,8 +262,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 		#region ConvertOutArguments
 		private static string ConvertOutArguments(string translating)
 		{
-			// Function signature
-			// "$1* $2"
+			// Function signature: "$1* $2"
 			var lstOutVars = new List<Match>();
 			translating = Regex.Replace(translating, @"out\s+([A-Za-z0-9_*]+)\s+([A-Za-z0-9_]+)",
 				m => ConvertOutSignature(m, lstOutVars));
@@ -272,10 +271,12 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			// Value assignment
 			var me = new MatchEvaluator(ConvertOutAssign);
 			foreach (var m2 in lstOutVars) {
-				translating = Regex.Replace(translating, "(" + m2.Groups[2].Value + @")\s+=\s+([A-Za-z0-9_]+);", me);
+				if (m2.Groups[1].Value != "char*") {
+					translating = Regex.Replace(translating, "(" + m2.Groups[2].Value + @")\s+=\s+(.+?);", me);
+				}
 			}
 			// Clean *(variable)
-			translating = Regex.Replace(translating, @"[*][(]([a-z]+)[)]", "*$1");
+			translating = Regex.Replace(translating, @"[*][(]([A-Za-z]+)[)]", "*$1");
 
 			return translating;
 		}
@@ -695,7 +696,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 			translating = Regex.Replace(translating, @"Char\.(To[A-Za-z]+er)", MetaChangeCase);
 
-			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "*$1 = ($2 + $3)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_*]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", AffectSubstring);
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "($1 + $2)");
 
 			translating = Regex.Replace(translating, @"String\.IsNullOrEmpty[(]([A-Za-z0-9_]+)[)]", "(($1 == NULL) || (strlen($1) < 1))");
@@ -709,6 +710,14 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				@"([A-Za-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)[.]Replace[(]'(.+?)',\s*'(.+?)'[)]", InPlaceCharReplace);
 
 			return translating;
+		}
+
+		private static string AffectSubstring(Match m)
+		{
+			var g      = m.Groups;
+			var target = g[1].Value;
+			return QuickFormat(target[0] == '*' ? "{0} = ({1} + {2})" : "*{0} = ({1} + {2})",
+				target, g[2].Value, g[3].Value);
 		}
 
 		private static string MetaChangeCase(Match m)
