@@ -47,11 +47,11 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 							  "SYNOPSIS\n\tootd <orig-source.cs> <translated.c>|-\n\n" +
 							  "DESCRIPTION\n\tOOTD is a regular expression powered special purpose C# to C translator\n" +
 							  "\tmade specifically for ARGLINK_REWRITE. No artificial intelligence is\n" +
-							  "\tinvolved, just old fashioned software text replacement.\n" +
+							  "\tinvolved, just old fashioned software text replacement.\n\n" +
 							  "OPTIONS\n\tNone per se, but '-' can be used for standard output.\n");
 			//puts("ENVIRONMENT\n\t\n");
-			Console.WriteLine("EXIT STATUS\n\t0 on command success, 1 when this general help message is shown,\n" +
-							  "\t2 on an internally caught error.\n");
+			Console.WriteLine("EXIT CODES\n\t  0\ton command success\n\t 64\twhen this general help message is shown" +
+							  "\n\t 73\twhen input and output are the same file\n\t130\ton unhandled .NET exception\n");
 			//puts("EXAMPLES\n\t\n");
 			//puts("COMPATIBILITY\n\t\n");
 			//puts("SEE ALSO\n\t\n");
