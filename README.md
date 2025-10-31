@@ -11,8 +11,9 @@ Argonaut SNES Linker Rewrite, remixed.
 2. (Done) Write a program to translate C# code to compilable C.
 3. (Done) Correct the translated C program to a have a working version.
 4. (In progress) Correct the translator program accordingly.
-5. Correct the ROM output currently leading to graphic and sound glitches in game
-6. Improve the debugger map output for easier debugging
+5. Correct the ROM output differences that are leading to graphic and sound glitches in game.
+6. Improve the debugger map output for easier debugging.
+7. Fix memory leaks. They are less of concern in a short-lived program.
 
 Why write a translator program? Setting up and using a C# debugger is much easier than a C debugger. It also allows to separate concerns during development: general logic in C#, manual memory management in C.   
 
