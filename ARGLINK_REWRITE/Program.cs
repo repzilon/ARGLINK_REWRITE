@@ -55,6 +55,7 @@ namespace ARGLINK_REWRITE
 		private static byte s_romType = 0x7D;
 
 		private static bool s_verbose; // = false;
+		private static string s_directoryPrefix = "";
 		// ReSharper restore InconsistentNaming
 
 		#region Utility methods
@@ -80,6 +81,7 @@ Note: DOS has a 126-char limit on parameters, so please use the @ option.
 ** -H<size>	- String hash initial capacity, default = 256.
 ** -O<romfile>	- Output a ROM file.
 ** -S		- Display all public symbols.
+** -W<prefix>	- Set prefix (Work directory) for object files.
 
 ** Re-rewrite Added Options are:
 ** -Q		- Turn off banner on startup.
@@ -101,7 +103,6 @@ Ignored Options are:
 ** -M<size>	- Memory size, default = 2 (mebibytes).
 ** -R		- Display ROM block information.
 ** -T<type>	- Set ROM type (in hex), default = 0x7D.
-** -W<prefix>	- Set prefix (Work directory) for object files.
 ** -Z		- Generate a debugger MAP file.");
 		}
 
@@ -179,7 +180,7 @@ Ignored Options are:
 			if (argument.Length == 2) {
 				char c0 = argument[0];
 				if ((c0 == '-') || (c0 == '/')) {
-					char c1 = argument[1];
+					char c1   = argument[1];
 					bool isIt = (c1 == Char.ToUpper(flag)) || (c1 == Char.ToLower(flag));
 					if (isIt) {
 						optionVariable = true;
@@ -299,19 +300,31 @@ Ignored Options are:
 			return Path.GetExtension(path);
 		}
 
-		private static string AppendExtensionIfAbsent(string argSfxObjectFile)
+		private static string AppendPrefixAndExtension(string argSfxObjectFile)
 		{
 			// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
 			string ext = ExtensionOf(argSfxObjectFile);
-			// ReSharper disable once ConvertIfStatementToReturnStatement
-			if (String.IsNullOrEmpty(ext)) {
-				// ReSharper disable once JoinDeclarationAndInitializer
-				string corrected;
-				// ReSharper disable once UseStringInterpolation
-				corrected = String.Format("{0}{1}", argSfxObjectFile, s_defaultExtension);
-				return corrected;
+			if (String.IsNullOrEmpty(s_directoryPrefix)) {
+				// ReSharper disable once ConvertIfStatementToReturnStatement
+				if (String.IsNullOrEmpty(ext)) {
+					// ReSharper disable once JoinDeclarationAndInitializer
+					string corrected;
+					// ReSharper disable UseStringInterpolation
+					corrected = String.Format("{0}{1}", argSfxObjectFile, s_defaultExtension);
+					return corrected;
+				} else {
+					return argSfxObjectFile;
+				}
 			} else {
-				return argSfxObjectFile;
+				string corrected;
+				// ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
+				if (String.IsNullOrEmpty(ext)) {
+					corrected = String.Format("{0}/{1}{2}", s_directoryPrefix, argSfxObjectFile, s_defaultExtension);
+				} else {
+					corrected = String.Format("{0}/{1}", s_directoryPrefix, argSfxObjectFile);
+				}
+				// ReSharper restore UseStringInterpolation
+				return corrected;
 			}
 		}
 		#endregion
@@ -528,8 +541,8 @@ Ignored Options are:
 			// Parse command line
 			// "Sob" is the default file extension for ArgSfxX output, not to insult anybody
 			int    idx;
-			bool[] areSobs     = new bool[args.Length];
-			int    totalSobs   = args.Length;
+			bool[] areSobs   = new bool[args.Length];
+			int    totalSobs = args.Length;
 			string what;
 			bool   hideLogo    = false;
 			bool   showPublics = false;
@@ -559,7 +572,7 @@ Ignored Options are:
 					IsPositiveFlag('S', what, ref showPublics) || IsPositiveFlag('C', what, ref warnDupes) ||
 					IsStringFlag('O', what, ref romFile) || IsStringFlag('X', what, ref pubsPath) ||
 					IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
-					IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
+					IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what) || IsIgnoredFlag('A', what)) {
 					areSobs[idx] = false;
 					totalSobs--;
 				} else if (IsStringFlag('E', what, ref passed)) {
@@ -567,6 +580,19 @@ Ignored Options are:
 						s_defaultExtension = passed;
 					} else {
 						Console.WriteLine("ArgLink warning: default extension override must start with a dot.");
+					}
+
+					areSobs[idx] = false;
+					totalSobs--;
+				} else if (IsStringFlag('W', what, ref passed)) {
+					if (!String.IsNullOrEmpty(passed)) {
+						if (passed.EndsWith("/") || passed.EndsWith("\\")) {
+							s_directoryPrefix = passed.Substring(0, passed.Length - 1);
+						} else {
+							s_directoryPrefix = passed;
+						}
+					} else {
+						Console.WriteLine("ArgLink warning: empty directory prefix.");
 					}
 
 					areSobs[idx] = false;
@@ -586,13 +612,6 @@ Ignored Options are:
 						s_stringHashSize = parsedU16;
 					}
 					if (status != OptionResult.Absent) {
-						areSobs[idx] = false;
-						totalSobs--;
-					}
-
-					status = IsByteFlag('A', what, 1, 2, ref parsedU8);
-					if (status != OptionResult.Absent) {
-						Console.WriteLine("ArgLink warning: ignoring -{0} option (value {1}) for compatibility.", 'A', parsedU8);
 						areSobs[idx] = false;
 						totalSobs--;
 					}
@@ -636,7 +655,7 @@ Ignored Options are:
 						}
 
 						//Check if SOB file is indeed a SOB file
-						sobjFile = AppendExtensionIfAbsent(args[idx]);
+						sobjFile = AppendPrefixAndExtension(args[idx]);
 						BinaryReader fileSob = new BinaryReader(new FileStream(sobjFile, FileMode.Open, FileAccess.Read, FileShare.Read, s_ioBuffersKiB * 1024));
 						LuigiFormat("Open {0}", sobjFile);
 						fileSob.BaseStream.Seek(0, SeekOrigin.Begin);
@@ -676,7 +695,7 @@ Ignored Options are:
 				n = 0;
 				for (idx = firstSob; idx < args.Length; idx++) {
 					if (areSobs[idx]) {
-						sobjFile = AppendExtensionIfAbsent(args[idx]);
+						sobjFile = AppendPrefixAndExtension(args[idx]);
 						PerformLink(link, sobjFile, fileOut, startLink, n);
 						n++;
 					}

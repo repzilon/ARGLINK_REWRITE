@@ -50,6 +50,6 @@ Exit codes follow the recommendations of the BSD style guide and defined in ``sy
 |           | -R           | Display ROM block information.                          |
 |    Yes    | -S           | Display all public symbols.                             |
 |           | -T\<type>    | Set ROM type (in hex), default = 0x7D.                  |
-|           | -W\<prefix>  | Set prefix (Work directory) for object files.           |
+|    Yes    | -W\<prefix>  | Set prefix (Work directory) for object files.           |
 |     -     | -Y           | Use secondary ADS backplane CIC.                        |
 |           | -Z           | Generate a debugger MAP file.                           |

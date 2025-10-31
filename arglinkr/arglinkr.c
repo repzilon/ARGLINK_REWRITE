@@ -42,6 +42,7 @@ uint8_t s_memoryMiB = 2;
 uint8_t s_romType = 0x7D;
 
 bool s_verbose; // = false;
+char* s_directoryPrefix = "";
 
 #pragma mark - Utility methods
 void OutputLogo()
@@ -67,6 +68,7 @@ void OutputUsage()
 "** -H<size>\t- String hash initial capacity, default = 256.\n"
 "** -O<romfile>\t- Output a ROM file.\n"
 "** -S\t\t- Display all public symbols.\n"
+"** -W<prefix>\t- Set prefix (Work directory) for object files.\n"
 "\n"
 "** Re-rewrite Added Options are:\n"
 "** -Q\t\t- Turn off banner on startup.\n"
@@ -88,7 +90,6 @@ void OutputUsage()
 "** -M<size>\t- Memory size, default = 2 (mebibytes).\n"
 "** -R\t\t- Display ROM block information.\n"
 "** -T<type>\t- Set ROM type (in hex), default = 0x7D.\n"
-"** -W<prefix>\t- Set prefix (Work directory) for object files.\n"
 "** -Z\t\t- Generate a debugger MAP file.\n"
 );
 }
@@ -285,16 +286,26 @@ char* ExtensionOf(const char* path)
 	char* dot = strrchr(path, '.'); return (!dot || dot == path) ? NULL : dot;
 }
 
-char* AppendExtensionIfAbsent(char* argSfxObjectFile)
+char* AppendPrefixAndExtension(char* argSfxObjectFile)
 {
 	// Note: it is written this way to ease translation to C (passing char* in call chains is hard)
 	char* ext = ExtensionOf(argSfxObjectFile);
-	if (((ext == NULL) || (strlen(ext) < 1))) {
-		char* corrected;
-		int nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); if (nbytes < 0) { puts("ArgLink error: cannot evaluate length with snprintf, source code line " STRINGIZE(__LINE__)); exit(70); } else { nbytes++; corrected = (char*)calloc((size_t)nbytes, sizeof(char)); if (corrected == NULL) { puts("ArgLink error: cannot allocate memory, source code line " STRINGIZE(__LINE__)); exit(70); } else { snprintf(corrected, (size_t)nbytes, "%s%s", argSfxObjectFile, s_defaultExtension); } }
-		return corrected;
+	if (((s_directoryPrefix == NULL) || (strlen(s_directoryPrefix) < 1))) {
+		if (((ext == NULL) || (strlen(ext) < 1))) {
+			char* corrected;
+			int nbytes = snprintf(NULL, 0, "%s%s", argSfxObjectFile, s_defaultExtension); if (nbytes < 0) { puts("ArgLink error: cannot evaluate length with snprintf, source code line " STRINGIZE(__LINE__)); exit(70); } else { nbytes++; corrected = (char*)calloc((size_t)nbytes, sizeof(char)); if (corrected == NULL) { puts("ArgLink error: cannot allocate memory, source code line " STRINGIZE(__LINE__)); exit(70); } else { snprintf(corrected, (size_t)nbytes, "%s%s", argSfxObjectFile, s_defaultExtension); } }
+			return corrected;
+		} else {
+			return argSfxObjectFile;
+		}
 	} else {
-		return argSfxObjectFile;
+		char* corrected;
+		if (((ext == NULL) || (strlen(ext) < 1))) {
+			int nbytes = snprintf(NULL, 0, "%s/%s%s", s_directoryPrefix, argSfxObjectFile, s_defaultExtension); if (nbytes < 0) { puts("ArgLink error: cannot evaluate length with snprintf, source code line " STRINGIZE(__LINE__)); exit(70); } else { nbytes++; corrected = (char*)calloc((size_t)nbytes, sizeof(char)); if (corrected == NULL) { puts("ArgLink error: cannot allocate memory, source code line " STRINGIZE(__LINE__)); exit(70); } else { snprintf(corrected, (size_t)nbytes, "%s/%s%s", s_directoryPrefix, argSfxObjectFile, s_defaultExtension); } }
+		} else {
+			int nbytes = snprintf(NULL, 0, "%s/%s", s_directoryPrefix, argSfxObjectFile); if (nbytes < 0) { puts("ArgLink error: cannot evaluate length with snprintf, source code line " STRINGIZE(__LINE__)); exit(70); } else { nbytes++; corrected = (char*)calloc((size_t)nbytes, sizeof(char)); if (corrected == NULL) { puts("ArgLink error: cannot allocate memory, source code line " STRINGIZE(__LINE__)); exit(70); } else { snprintf(corrected, (size_t)nbytes, "%s/%s", s_directoryPrefix, argSfxObjectFile); } }
+		}
+		return corrected;
 	}
 }
 
@@ -542,7 +553,7 @@ int main(int argc, char* argv[])
 			IsPositiveFlag('S', what, &showPublics) || IsPositiveFlag('C', what, &warnDupes) ||
 			IsStringFlag('O', what, &romFile) || IsStringFlag('X', what, &pubsPath) ||
 			IsIgnoredFlag('D', what) || IsIgnoredFlag('N', what) || IsIgnoredFlag('Y', what) ||
-			IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what)) {
+			IsIgnoredFlag('F', what) || IsIgnoredFlag('P', what) || IsIgnoredFlag('A', what)) {
 			areSobs[idx] = false;
 			totalSobs--;
 		} else if (IsStringFlag('E', what, &passed)) {
@@ -550,6 +561,19 @@ int main(int argc, char* argv[])
 				s_defaultExtension = passed;
 			} else {
 				puts("ArgLink warning: default extension override must start with a dot.");
+			}
+
+			areSobs[idx] = false;
+			totalSobs--;
+		} else if (IsStringFlag('W', what, &passed)) {
+			if (!((passed == NULL) || (strlen(passed) < 1))) {
+				if ((passed[strlen(passed) - 1] == '/') || (passed[strlen(passed) - 1] == '\\')) {
+					passed[strlen(passed) - 1] = '\0'; s_directoryPrefix = passed;
+				} else {
+					s_directoryPrefix = passed;
+				}
+			} else {
+				puts("ArgLink warning: empty directory prefix.");
 			}
 
 			areSobs[idx] = false;
@@ -569,13 +593,6 @@ int main(int argc, char* argv[])
 				s_stringHashSize = parsedU16;
 			}
 			if (status != Absent) {
-				areSobs[idx] = false;
-				totalSobs--;
-			}
-
-			status = IsByteFlag('A', what, 1, 2, &parsedU8);
-			if (status != Absent) {
-				printf("ArgLink warning: ignoring -%c option (value %hhu) for compatibility.\n", 'A', parsedU8);
 				areSobs[idx] = false;
 				totalSobs--;
 			}
@@ -619,7 +636,7 @@ int main(int argc, char* argv[])
 				}
 
 				//Check if SOB file is indeed a SOB file
-				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
+				sobjFile = AppendPrefixAndExtension(argv[1 + idx]);
 				FILE* fileSob = fopen(sobjFile, "rb"); if (fileSob == NULL) { puts("ArgLink error: cannot open sobjFile in Read mode, source code line " STRINGIZE(__LINE__)); exit(66); }; size_t fileSobZone = (size_t)(s_ioBuffersKiB * 1024); char* fileSobBuffer = (fileSobZone > 0) ? (char*)calloc(fileSobZone, sizeof(char)) : NULL; setvbuf(fileSob, fileSobBuffer, fileSobBuffer ? _IOFBF : _IONBF, fileSobZone);
 				LuigiFormat("Open %s\n", sobjFile);
 				fseek(fileSob, 0, SEEK_SET);
@@ -659,7 +676,7 @@ int main(int argc, char* argv[])
 		n = 0;
 		for (idx = firstSob; idx < (argc - 1); idx++) {
 			if (areSobs[idx]) {
-				sobjFile = AppendExtensionIfAbsent(argv[1 + idx]);
+				sobjFile = AppendPrefixAndExtension(argv[1 + idx]);
 				PerformLink(link, sobjFile, fileOut, startLink, n);
 				n++;
 			}

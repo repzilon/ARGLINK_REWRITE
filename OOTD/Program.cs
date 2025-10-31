@@ -698,6 +698,7 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_*]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", AffectSubstring);
 			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.Substring[(](\d+)[)]", "($1 + $2)");
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_*]+)\s+=\s+([A-Za-z0-9_]+)\.Substring[(](\d+),\s+(.+)[)]", AffectSubstring2);
 
 			translating = Regex.Replace(translating, @"String\.IsNullOrEmpty[(]([A-Za-z0-9_]+)[)]", "(($1 == NULL) || (strlen($1) < 1))");
 
@@ -709,6 +710,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			translating = Regex.Replace(translating,
 				@"([A-Za-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)[.]Replace[(]'(.+?)',\s*'(.+?)'[)]", InPlaceCharReplace);
 
+			translating = Regex.Replace(translating, @"([A-Za-z0-9_]+)\.EndsWith[(][""](.+?)[""][)]", TranslateEndsWith);
+
 			return translating;
 		}
 
@@ -718,6 +721,16 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 			var target = g[1].Value;
 			return QuickFormat(target[0] == '*' ? "{0} = ({1} + {2})" : "*{0} = ({1} + {2})",
 				target, g[2].Value, g[3].Value);
+		}
+
+		private static string AffectSubstring2(Match m)
+		{
+			var g = m.Groups;
+			if (g[3].Value == "0") {
+				return QuickFormat("{1}[{2}] = '\\0'; {0} = {1}", g[1].Value, g[2].Value, g[4].Value);
+			} else {
+				throw new NotSupportedException();
+			}
 		}
 
 		private static string MetaChangeCase(Match m)
@@ -820,6 +833,17 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				"for (char* current_pos; (current_pos = strchr({0}, '{1}')) != NULL; *current_pos = '{2}')",
 				source, g[3].Value, g[4].Value) : m.Value;
 		}
+
+		private static string TranslateEndsWith(Match m)
+		{
+			var g    = m.Groups;
+			var with = g[2].Value;
+			if (Regex.Unescape(with).Length == 1) {
+				return QuickFormat("({0}[strlen({0}) - 1] == '{1}')", g[1].Value, with.Replace("'", @"\'"));
+			} else {
+				throw new NotSupportedException();
+			}
+		}
 		#endregion
 
 		#region TranslateHashtableMethods
@@ -886,7 +910,8 @@ namespace Exploratorium.ArgSfx.OutOfThisDimension
 				@"(bool Is([A-Za-z0-9]+)Flag[(]char flag), (char[*] argument)(?!.*([*][*]))",
 				"$1, const $3");
 			toConstify = toConstify.Replace("ExtensionOf(char* path)", "ExtensionOf(const char* path)");
-			toConstify = toConstify.Replace("PerformLink(ht* link, char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n)",
+			toConstify = toConstify.Replace(
+				"PerformLink(ht* link, char* sobjFile, FILE* fileOut, int64_t startLink[], int32_t n)",
 				"PerformLink(const ht* link, char* sobjFile, FILE* fileOut, const int64_t startLink[], int32_t n)");
 			return toConstify;
 		}
